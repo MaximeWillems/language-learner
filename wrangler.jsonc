@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kotoba",
+  "main": "api/index.ts",
+  "compatibility_date": "2026-08-21",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kotoba",
+      "database_id": "A_REMPLACER_APRES_npm_run_db_create"
+    }
+  ],
+  "observability": { "enabled": true }
+}
