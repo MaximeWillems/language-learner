@@ -56,20 +56,52 @@ api/          le Worker : routes Hono + planification FSRS
 shared/       types et comparaison des réponses, utilisés des deux côtés
 src/          l'interface React
 migrations/   le schéma SQL et les kana
-scripts/      génération du jeu de kana (regénère migrations/0002)
+scripts/      generation des donnees : kana (migration 0002), kanji (migration 0004)
 ```
 
 ## Ce qui marche
 
-- 208 kana en base : hiragana et katakana, gojūon + dakuten + yōon
-- Deux cartes par kana : **lire** le signe (saisie libre) et le **reconnaître** parmi quatre
-- Planification par FSRS via `ts-fsrs`, avec l'intervalle de chaque note affiché avant de choisir
-- Plafond de 20 nouvelles cartes par jour, révisions et nouveautés mélangées
-- Réponses acceptées en rōmaji Hepburn ou kunrei (`shi` = `si`, `tsu` = `tu`, `fu` = `hu`),
-  directement en kana, en hiragana pour un katakana, majuscules et espaces ignorés
-- Bouton « en fait c'était juste » pour corriger une note trop sévère
-- Chaque réponse est journalisée dans `review_log` — c'est cette table qui permettra
-  plus tard de réentraîner les paramètres FSRS sur ton propre historique
+**Kana** — 208 signes : hiragana et katakana, gojuon + dakuten + yoon. Deux cartes
+chacun : lire le signe (saisie libre) et le reconnaitre parmi quatre.
+
+**Kanji** — les 2 136 joyo, les plus courants d'abord, groupes par niveau scolaire
+(6 annees de primaire + college). Deux cartes chacun : donner le sens (parmi quatre)
+et donner une lecture (saisie libre). 1 987 ont un sens en francais ; les 149 restants,
+tous de niveau college, s'affichent en anglais avec une mention.
+
+**Le moteur** — planification par FSRS (`ts-fsrs`), avec l'intervalle de chaque note
+affiche avant de choisir. Plafond de 20 nouvelles cartes par jour, revisions et
+nouveautes melangees. Chaque reponse est journalisee dans `review_log` : c'est cette
+table qui permettra plus tard de reentrainer les parametres sur ton propre historique.
+
+**Les reponses acceptees** — romaji Hepburn ou kunrei (`shi` = `si`, `tsu` = `tu`),
+saisie directe en kana, hiragana pour un katakana, majuscules et espaces ignores.
+Pour un kanji, n'importe laquelle de ses lectures on ou kun, avec ou sans l'okurigana
+(`okona` comme `okonau`). Et un bouton « en fait c'etait juste » pour corriger une
+note trop severe.
+
+## Regenerer les donnees
+
+Les kana se regenerent seuls :
+
+```
+node scripts/seed-kana.mjs
+```
+
+Les kanji viennent de KANJIDIC2, un XML de 15 Mo qui n'est pas versionne. Pour
+regenerer `migrations/0004_seed_kanji.sql`, telecharger
+`http://www.edrdg.org/kanjidic/kanjidic2.xml.gz`, le decompresser, puis :
+
+```
+node scripts/import-kanji.mjs chemin/vers/kanjidic2.xml
+```
+
+## Licences des donnees
+
+KANJIDIC2 est publie par l'Electronic Dictionary Research and Development Group sous
+licence CC BY-SA : **la mention de la source est obligatoire**. Elle figure en bas de
+l'ecran d'accueil. Toute source ajoutee plus tard (JMdict, Tatoeba, KanjiVG) porte la
+meme obligation.
 
 ## Raccourcis clavier
 
@@ -89,5 +121,6 @@ directement Encore / Dur / Bon / Facile.
 
 ## Suite
 
-Phase 01 : import de KANJIDIC, cartes de lecture on/kun, écran de statistiques.
-Phase 02 : les phrases — script d'import avec découpage en mots, texte à trous.
+Phase 02 : les phrases — script d'import avec decoupage en mots, liens
+phrase / mot / caractere, traduction et texte a trous.
+Ensuite : ecran de statistiques, confort d'ajout, mobile, outil de trace.

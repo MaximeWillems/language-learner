@@ -9,19 +9,40 @@ const LANG = 'ja'
 const NEW_PER_DAY = 20
 
 interface Row extends CardRow {
-  kind: 'reading' | 'recall'
+  kind: 'reading' | 'recall' | 'meaning'
   glyph: string
   reading: string
   script: Script
   grp: string
+  meanings: string | null
+  meaning_lang: string | null
+  on_readings: string | null
+  kun_readings: string | null
+  strokes: number | null
 }
 
 interface Kana { glyph: string; reading: string; kind: Script }
 
+const list = (raw: string | null): string[] => {
+  if (!raw) return []
+  try { return JSON.parse(raw) as string[] } catch { return [] }
+}
+
+const pick = <T,>(from: T[], n: number, skip: (v: T) => boolean): T[] => {
+  const out = new Set<T>()
+  let guard = 0
+  while (out.size < n && guard++ < from.length * 4) {
+    const v = from[Math.floor(Math.random() * from.length)]
+    if (v !== undefined && !skip(v)) out.add(v)
+  }
+  return [...out]
+}
+
 const SELECT = `
   SELECT c.id, c.kind, c.due, c.stability, c.difficulty, c.elapsed_days, c.scheduled_days,
          c.learning_steps, c.reps, c.lapses, c.state, c.last_review,
-         ch.glyph, ch.reading, ch.kind AS script, ch.grp
+         ch.glyph, ch.reading, ch.kind AS script, ch.grp,
+         ch.meanings, ch.meaning_lang, ch.on_readings, ch.kun_readings, ch.strokes
     FROM card c
     JOIN character ch ON ch.id = c.item_id
    WHERE c.user_id = ? AND c.lang = ? AND c.suspended = 0 AND c.item_type = 'character'`
@@ -62,17 +83,19 @@ function interleave(due: Row[], fresh: Row[]): Row[] {
   return out
 }
 
-function toCard(row: Row, pool: Kana[], now: Date): QueueCard {
+function toCard(row: Row, kana: Kana[], senses: string[], now: Date): QueueCard {
+  const meanings = list(row.meanings)
   const choices: string[] = []
+
   if (row.kind === 'recall') {
-    const others = pool.filter(k => k.kind === row.script && k.reading !== row.reading)
-    const picked = new Set<string>()
-    while (picked.size < 3 && picked.size < others.length) {
-      picked.add(others[Math.floor(Math.random() * others.length)].glyph)
-    }
-    choices.push(row.glyph, ...picked)
+    const others = kana.filter(k => k.kind === row.script && k.reading !== row.reading)
+    choices.push(row.glyph, ...pick(others, 3, k => k.glyph === row.glyph).map(k => k.glyph))
+    choices.sort(() => Math.random() - 0.5)
+  } else if (row.kind === 'meaning' && meanings.length) {
+    choices.push(meanings[0], ...pick(senses, 3, v => meanings.includes(v)))
     choices.sort(() => Math.random() - 0.5)
   }
+
   return {
     id: row.id,
     kind: row.kind,
@@ -82,7 +105,12 @@ function toCard(row: Row, pool: Kana[], now: Date): QueueCard {
     grp: row.grp,
     isNew: row.state === 0,
     choices,
-    previews: previews(fromRow(row), now)
+    previews: previews(fromRow(row), now),
+    meanings,
+    meaningLang: row.meaning_lang ?? 'fr',
+    onReadings: list(row.on_readings),
+    kunReadings: list(row.kun_readings),
+    strokes: row.strokes
   }
 }
 
@@ -109,8 +137,8 @@ api.post('/deck', async c => {
   const due = blank(now).due.toISOString()
 
   const chars = await c.env.DB.prepare(
-    `SELECT id FROM character WHERE lang=? AND kind IN (${ph(scripts.length)}) AND grp IN (${ph(groups.length)}) ORDER BY ord`
-  ).bind(LANG, ...scripts, ...groups).all<{ id: number }>()
+    `SELECT id, kind FROM character WHERE lang=? AND kind IN (${ph(scripts.length)}) AND grp IN (${ph(groups.length)}) ORDER BY ord`
+  ).bind(LANG, ...scripts, ...groups).all<{ id: number; kind: string }>()
 
   const insert = c.env.DB.prepare(
     `INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
@@ -118,7 +146,8 @@ api.post('/deck', async c => {
   )
   const stmts = []
   for (const ch of chars.results) {
-    for (const kind of ['reading', 'recall']) {
+    const kinds = ch.kind === 'kanji' ? ['meaning', 'reading'] : ['reading', 'recall']
+    for (const kind of kinds) {
       stmts.push(insert.bind(u, LANG, ch.id, kind, due, now.toISOString()))
     }
   }
@@ -141,11 +170,23 @@ api.get('/queue', async c => {
     ? (await c.env.DB.prepare(`${SELECT} AND c.state=0 ORDER BY ch.ord, c.kind LIMIT ?`).bind(u, LANG, room).all<Row>()).results
     : []
 
-  const pool = await c.env.DB.prepare(`SELECT glyph, reading, kind FROM character WHERE lang=? AND grp<>'rare'`)
-    .bind(LANG).all<Kana>()
+  const queue = interleave(reviews.results, fresh)
+
+  const kana = queue.some(r => r.kind === 'recall')
+    ? (await c.env.DB.prepare(
+        `SELECT glyph, reading, kind FROM character WHERE lang=? AND kind<>'kanji' AND grp<>'rare'`
+      ).bind(LANG).all<Kana>()).results
+    : []
+
+  const senses = queue.some(r => r.kind === 'meaning')
+    ? (await c.env.DB.prepare(
+        `SELECT json_extract(meanings, '$[0]') AS m FROM character
+          WHERE lang=? AND kind='kanji' AND meanings IS NOT NULL ORDER BY RANDOM() LIMIT 80`
+      ).bind(LANG).all<{ m: string }>()).results.map(r => r.m).filter(Boolean)
+    : []
 
   return c.json({
-    cards: interleave(reviews.results, fresh).map(r => toCard(r, pool.results, now)),
+    cards: queue.map(r => toCard(r, kana, senses, now)),
     counts: ct
   })
 })

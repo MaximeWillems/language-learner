@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { matchesKana } from '../shared/normalize'
+import { matchesAnyReading, matchesKana } from '../shared/normalize'
 import type { QueueCard, Rating } from '../shared/types'
 import { getQueue, sendReview } from './api'
 
@@ -9,6 +9,23 @@ const RATINGS: { v: Rating; label: string }[] = [
   { v: 3, label: 'Bon' },
   { v: 4, label: 'Facile' }
 ]
+
+const PROMPTS: Record<string, string> = {
+  'reading:hiragana': 'Lis cet hiragana',
+  'reading:katakana': 'Lis ce katakana',
+  'reading:kanji': 'Donne une lecture de ce kanji',
+  'recall:hiragana': 'Retrouve l’hiragana',
+  'recall:katakana': 'Retrouve le katakana',
+  'meaning:kanji': 'Que signifie ce kanji ?'
+}
+
+const answerOf = (c: QueueCard) => (c.kind === 'meaning' ? c.meanings[0] ?? '' : c.glyph)
+
+function isRight(c: QueueCard, answer: string): boolean {
+  if (c.kind === 'meaning' || c.kind === 'recall') return answer === answerOf(c)
+  if (c.script === 'kanji') return matchesAnyReading(answer, [...c.onReadings, ...c.kunReadings])
+  return matchesKana(answer, c.glyph, c.reading)
+}
 
 export default function Review({ onDone }: { onDone: () => void }) {
   const [cards, setCards] = useState<QueueCard[] | null>(null)
@@ -26,16 +43,15 @@ export default function Review({ onDone }: { onDone: () => void }) {
   }, [])
 
   const card = cards?.[i]
+  const typed = card?.kind === 'reading'
 
   useEffect(() => {
-    if (card && !revealed && card.kind === 'reading') box.current?.focus()
-  }, [card, revealed])
+    if (card && !revealed && typed) box.current?.focus()
+  }, [card, revealed, typed])
 
   const reveal = (answer: string) => {
     if (!card || revealed || !answer.trim()) return
-    const ok = card.kind === 'reading'
-      ? matchesKana(answer, card.glyph, card.reading)
-      : answer === card.glyph
+    const ok = isRight(card, answer)
     setCorrect(ok)
     setRevealed(true)
     setScore(s => ({ ok: s.ok + (ok ? 1 : 0), ko: s.ko + (ok ? 0 : 1) }))
@@ -92,28 +108,34 @@ export default function Review({ onDone }: { onDone: () => void }) {
   }
 
   const total = cards.length
+  const answer = answerOf(card)
+  const choiceClass = (ch: string) => {
+    const parts = ['choice']
+    if (card.kind === 'recall') parts.push('jp')
+    if (revealed && ch === answer) parts.push('good')
+    if (revealed && ch === input && !correct) parts.push('bad')
+    return parts.join(' ')
+  }
 
   return (
     <main className="page review">
       <div className="bar">
-        <div className="progress"><span style={{ width: `${(i / total) * 100}%` }} /></div>
+        <div className="progress"><span style={{ width: (i / total) * 100 + '%' }} /></div>
         <span className="mono">{i + 1} / {total}</span>
         <button className="link" onClick={onDone}>Quitter</button>
       </div>
 
       <div className="card">
         {card.isNew && <span className="badge">nouvelle</span>}
-        <span className="prompt-label">
-          {card.kind === 'reading' ? `Lis ce ${card.script}` : 'Retrouve le kana'}
-        </span>
+        {card.strokes !== null && <span className="strokes mono">{card.strokes} traits</span>}
 
-        {card.kind === 'reading' ? (
-          <span className="glyph jp">{card.glyph}</span>
-        ) : (
-          <span className="romaji">{card.reading}</span>
-        )}
+        <span className="prompt-label">{PROMPTS[card.kind + ':' + card.script] ?? 'À toi'}</span>
 
-        {card.kind === 'reading' ? (
+        {card.kind === 'recall'
+          ? <span className="romaji">{card.reading}</span>
+          : <span className="glyph jp">{card.glyph}</span>}
+
+        {typed ? (
           <form onSubmit={e => { e.preventDefault(); reveal(input) }}>
             <input
               ref={box}
@@ -121,21 +143,16 @@ export default function Review({ onDone }: { onDone: () => void }) {
               value={input}
               onChange={e => setInput(e.target.value)}
               readOnly={revealed}
-              placeholder="rōmaji ou kana"
+              placeholder={card.script === 'kanji' ? 'une lecture, en kana ou rōmaji' : 'rōmaji ou kana'}
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}
             />
           </form>
         ) : (
-          <div className="choices">
+          <div className={card.kind === 'meaning' ? 'choices text' : 'choices'}>
             {card.choices.map(ch => (
-              <button
-                key={ch}
-                className={`choice jp ${revealed && ch === card.glyph ? 'good' : ''} ${revealed && ch === input && !correct ? 'bad' : ''}`}
-                disabled={revealed}
-                onClick={() => { setInput(ch); reveal(ch) }}
-              >
+              <button key={ch} className={choiceClass(ch)} disabled={revealed} onClick={() => { setInput(ch); reveal(ch) }}>
                 {ch}
               </button>
             ))}
@@ -143,11 +160,26 @@ export default function Review({ onDone }: { onDone: () => void }) {
         )}
 
         {revealed && (
-          <div className={`verdict ${correct ? 'good' : 'bad'}`}>
-            {correct ? 'Juste' : 'Raté'}
-            <span className="expected">
-              <span className="jp">{card.glyph}</span> = {card.reading}
-            </span>
+          <div className="verdict">
+            <span className={correct ? 'good' : 'bad'}>{correct ? 'Juste' : 'Raté'}</span>
+
+            {card.script === 'kanji' ? (
+              <div className="detail">
+                <span className="sens">
+                  {card.meanings.join(', ')}
+                  {card.meaningLang === 'en' && <em> — sens en anglais, pas de traduction française disponible</em>}
+                </span>
+                <span className="lectures">
+                  {card.onReadings.length > 0 && <span>on <b className="jp">{card.onReadings.join('・')}</b></span>}
+                  {card.kunReadings.length > 0 && <span>kun <b className="jp">{card.kunReadings.join('・')}</b></span>}
+                </span>
+              </div>
+            ) : (
+              <span className="detail">
+                <span className="jp big">{card.glyph}</span> = {card.reading}
+              </span>
+            )}
+
             {!correct && (
               <button className="link" onClick={() => { setCorrect(true); setScore(s => ({ ok: s.ok + 1, ko: s.ko - 1 })) }}>
                 en fait c’était juste
@@ -160,11 +192,7 @@ export default function Review({ onDone }: { onDone: () => void }) {
       {revealed && (
         <div className="ratings">
           {RATINGS.map(r => (
-            <button
-              key={r.v}
-              className={`rating ${r.v === suggested ? 'suggested' : ''}`}
-              onClick={() => rate(r.v)}
-            >
+            <button key={r.v} className={r.v === suggested ? 'rating suggested' : 'rating'} onClick={() => rate(r.v)}>
               <span className="k">{r.label}</span>
               <span className="iv mono">{card.previews[r.v]}</span>
             </button>
@@ -172,9 +200,7 @@ export default function Review({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
-      {!revealed && card.kind === 'reading' && (
-        <p className="hint">Entrée pour valider</p>
-      )}
+      {!revealed && typed && <p className="hint">Entrée pour valider</p>}
     </main>
   )
 }

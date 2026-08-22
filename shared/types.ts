@@ -1,5 +1,5 @@
-export type CardKind = 'reading' | 'recall'
-export type Script = 'hiragana' | 'katakana'
+export type CardKind = 'reading' | 'recall' | 'meaning'
+export type Script = 'hiragana' | 'katakana' | 'kanji'
 export type Rating = 1 | 2 | 3 | 4
 
 export interface QueueCard {
@@ -12,6 +12,11 @@ export interface QueueCard {
   isNew: boolean
   choices: string[]
   previews: Record<Rating, string>
+  meanings: string[]
+  meaningLang: string
+  onReadings: string[]
+  kunReadings: string[]
+  strokes: number | null
 }
 
 export interface Counts {
