@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { matchesAnyReading, matchesKana } from '../shared/normalize'
-import type { QueueCard, Rating } from '../shared/types'
-import { getQueue, sendReview } from './api'
+import type { PracticeRequest, QueueCard, Rating } from '../shared/types'
+import { getPractice, getQueue, logPractice, sendReview } from './api'
 
 const RATINGS: { v: Rating; label: string }[] = [
   { v: 1, label: 'Encore' },
@@ -27,9 +27,15 @@ function isRight(c: QueueCard, answer: string): boolean {
   return matchesKana(answer, c.glyph, c.reading)
 }
 
-export default function Review({ onDone }: { onDone: () => void }) {
+const BATCH = 30
+
+type Props = { mode: 'review' | 'practice'; filters: PracticeRequest; onDone: () => void }
+
+export default function Review({ mode, filters, onDone }: Props) {
+  const practice = mode === 'practice'
   const [cards, setCards] = useState<QueueCard[] | null>(null)
   const [i, setI] = useState(0)
+  const [seen, setSeen] = useState(0)
   const [input, setInput] = useState('')
   const [revealed, setRevealed] = useState(false)
   const [correct, setCorrect] = useState(false)
@@ -38,8 +44,10 @@ export default function Review({ onDone }: { onDone: () => void }) {
   const [sending, setSending] = useState(false)
   const box = useRef<HTMLInputElement>(null)
 
+  const fetchBatch = () => (practice ? getPractice(filters, BATCH) : getQueue(BATCH))
+
   useEffect(() => {
-    getQueue(30).then(r => setCards(r.cards)).catch(e => setError(String(e)))
+    fetchBatch().then(r => setCards(r.cards)).catch(e => setError(String(e)))
   }, [])
 
   const card = cards?.[i]
@@ -57,20 +65,43 @@ export default function Review({ onDone }: { onDone: () => void }) {
     setScore(s => ({ ok: s.ok + (ok ? 1 : 0), ko: s.ko + (ok ? 0 : 1) }))
   }
 
+  const advance = async () => {
+    setInput('')
+    setRevealed(false)
+    setSeen(seen + 1)
+    if (practice && cards && i + 1 >= cards.length) {
+      const r = await fetchBatch()
+      setCards(r.cards)
+      setI(0)
+      return
+    }
+    setI(i + 1)
+  }
+
   const rate = async (r: Rating) => {
     if (!card || !revealed || sending) return
     setSending(true)
     try {
       await sendReview({ cardId: card.id, rating: r, answer: input || null, correct })
+      await advance()
     } catch (e) {
       setError(String(e))
-      return
     } finally {
       setSending(false)
     }
-    setInput('')
-    setRevealed(false)
-    setI(i + 1)
+  }
+
+  const next = async () => {
+    if (!card || !revealed || sending) return
+    setSending(true)
+    try {
+      await logPractice({ cardId: card.id, answer: input || null, correct })
+      await advance()
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setSending(false)
+    }
   }
 
   const suggested: Rating = correct ? 3 : 1
@@ -78,12 +109,12 @@ export default function Review({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     if (!revealed) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') { e.preventDefault(); rate(suggested) }
-      else if (['1', '2', '3', '4'].includes(e.key)) { e.preventDefault(); rate(Number(e.key) as Rating) }
+      if (e.key === 'Enter') { e.preventDefault(); practice ? next() : rate(suggested) }
+      else if (!practice && ['1', '2', '3', '4'].includes(e.key)) { e.preventDefault(); rate(Number(e.key) as Rating) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [revealed, suggested, card, input, correct, sending])
+  }, [revealed, suggested, card, input, correct, sending, practice])
 
   if (error) {
     return (
@@ -97,17 +128,21 @@ export default function Review({ onDone }: { onDone: () => void }) {
   if (!cards) return <main className="page"><p className="hint">Chargement…</p></main>
 
   if (!card) {
+    const empty = seen === 0
     return (
       <main className="page done">
-        <span className="jp brand">お疲れ様</span>
-        <h1>Session terminée</h1>
-        <p className="sub">{score.ok} juste{score.ok > 1 ? 's' : ''} · {score.ko} raté{score.ko > 1 ? 's' : ''}</p>
+        <span className="jp brand">{empty ? '空' : 'お疲れ様'}</span>
+        <h1>{empty ? 'Rien à travailler' : practice ? 'Entraînement terminé' : 'Session terminée'}</h1>
+        <p className="sub">
+          {empty
+            ? 'Aucune carte ne correspond. Ajoute des caractères au paquet, ou élargis la sélection.'
+            : `${score.ok} juste${score.ok > 1 ? 's' : ''} · ${score.ko} raté${score.ko > 1 ? 's' : ''} sur ${seen}`}
+        </p>
         <button className="primary" onClick={onDone}>Retour</button>
       </main>
     )
   }
 
-  const total = cards.length
   const answer = answerOf(card)
   const choiceClass = (ch: string) => {
     const parts = ['choice']
@@ -120,13 +155,19 @@ export default function Review({ onDone }: { onDone: () => void }) {
   return (
     <main className="page review">
       <div className="bar">
-        <div className="progress"><span style={{ width: (i / total) * 100 + '%' }} /></div>
-        <span className="mono">{i + 1} / {total}</span>
+        {practice ? (
+          <span className="tag">entraînement libre</span>
+        ) : (
+          <div className="progress"><span style={{ width: (i / cards.length) * 100 + '%' }} /></div>
+        )}
+        <span className="mono">
+          {practice ? `${seen} vues · ${score.ok} / ${seen || 1}` : `${i + 1} / ${cards.length}`}
+        </span>
         <button className="link" onClick={onDone}>Quitter</button>
       </div>
 
       <div className="card">
-        {card.isNew && <span className="badge">nouvelle</span>}
+        {!practice && card.isNew && <span className="badge">nouvelle</span>}
         {card.strokes !== null && <span className="strokes mono">{card.strokes} traits</span>}
 
         <span className="prompt-label">{PROMPTS[card.kind + ':' + card.script] ?? 'À toi'}</span>
@@ -189,7 +230,9 @@ export default function Review({ onDone }: { onDone: () => void }) {
         )}
       </div>
 
-      {revealed && (
+      {revealed && (practice ? (
+        <button className="primary" disabled={sending} onClick={next}>Continuer</button>
+      ) : (
         <div className="ratings">
           {RATINGS.map(r => (
             <button key={r.v} className={r.v === suggested ? 'rating suggested' : 'rating'} onClick={() => rate(r.v)}>
@@ -198,7 +241,7 @@ export default function Review({ onDone }: { onDone: () => void }) {
             </button>
           ))}
         </div>
-      )}
+      ))}
 
       {!revealed && typed && <p className="hint">Entrée pour valider</p>}
     </main>

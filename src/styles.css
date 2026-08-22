@@ -225,3 +225,39 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 }
 .credits a { color: var(--muted); }
 .credits a:hover { color: var(--ai); }
+
+.tag {
+  flex: 1;
+  font-family: var(--f-mono);
+  font-size: .68rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ai);
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .7rem .9rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: .92rem;
+}
+.setting input {
+  width: 5rem;
+  padding: .4rem .5rem;
+  font: inherit;
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.setting input:focus { outline: 2px solid var(--ai); outline-offset: 1px; }
+
+.review .primary { align-self: stretch; }

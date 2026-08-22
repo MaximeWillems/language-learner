@@ -1,4 +1,4 @@
-import type { Counts, DeckRequest, QueueResponse, Rating, ReviewResponse } from '../shared/types'
+import type { Counts, DeckRequest, PracticeRequest, QueueResponse, Rating, ReviewResponse } from '../shared/types'
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init)
@@ -19,3 +19,16 @@ export const buildDeck = (body: DeckRequest) => post<Counts>('/api/deck', body)
 
 export const sendReview = (body: { cardId: number; rating: Rating; answer: string | null; correct: boolean }) =>
   post<ReviewResponse>('/api/review', body)
+
+export function getPractice(f: PracticeRequest, limit = 30) {
+  const p = new URLSearchParams({ limit: String(limit) })
+  if (f.scripts.length) p.set('scripts', f.scripts.join(','))
+  if (f.groups.length) p.set('groups', f.groups.join(','))
+  if (f.kinds.length) p.set('kinds', f.kinds.join(','))
+  return call<QueueResponse>('/api/practice?' + p)
+}
+
+export const logPractice = (body: { cardId: number; answer: string | null; correct: boolean }) =>
+  post<{ ok: boolean }>('/api/practice/log', body)
+
+export const saveSettings = (newPerDay: number) => post<Counts>('/api/settings', { newPerDay })

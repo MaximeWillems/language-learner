@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { Counts, DeckRequest, Script } from '../shared/types'
-import { buildDeck, getCounts } from './api'
+import type { CardKind, Counts, DeckRequest, PracticeRequest, Script } from '../shared/types'
+import { buildDeck, getCounts, saveSettings } from './api'
 import Review from './Review'
 
 const SCRIPTS: { key: Script; label: string; sample: string }[] = [
@@ -24,19 +24,39 @@ const KANJI_GROUPS = [
   { key: 'college', label: 'Collège', hint: '1110' }
 ]
 
+const DRILL_SCRIPTS: { key: Script; label: string }[] = [
+  { key: 'hiragana', label: 'Hiragana' },
+  { key: 'katakana', label: 'Katakana' },
+  { key: 'kanji', label: 'Kanji' }
+]
+
+const DRILL_KINDS: { key: CardKind; label: string; hint: string }[] = [
+  { key: 'reading', label: 'Lecture', hint: 'le signe → le son' },
+  { key: 'recall', label: 'Reconnaissance', hint: 'le son → le kana' },
+  { key: 'meaning', label: 'Sens', hint: 'le kanji → le français' }
+]
+
 const flip = (list: string[], v: string) =>
   list.includes(v) ? list.filter(x => x !== v) : [...list, v]
 
+const NO_FILTER: PracticeRequest = { scripts: [], groups: [], kinds: [] }
+
 export default function App() {
   const [counts, setCounts] = useState<Counts | null>(null)
-  const [screen, setScreen] = useState<'home' | 'review'>('home')
+  const [screen, setScreen] = useState<'home' | 'review' | 'practice'>('home')
   const [scripts, setScripts] = useState<Script[]>(['hiragana'])
   const [kanaGroups, setKanaGroups] = useState<string[]>(['gojuon'])
   const [kanjiGroups, setKanjiGroups] = useState<string[]>(['grade1'])
+  const [drillScripts, setDrillScripts] = useState<Script[]>([])
+  const [drillKinds, setDrillKinds] = useState<CardKind[]>([])
+  const [cap, setCap] = useState('20')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const refresh = () => getCounts().then(setCounts).catch(e => setError(String(e)))
+  const refresh = () =>
+    getCounts()
+      .then(c => { setCounts(c); setCap(String(c.newPerDay)) })
+      .catch(e => setError(String(e)))
 
   useEffect(() => { refresh() }, [])
 
@@ -52,8 +72,23 @@ export default function App() {
     }
   }
 
-  if (screen === 'review') {
-    return <Review onDone={() => { setScreen('home'); refresh() }} />
+  const commitCap = async () => {
+    const n = Number(cap)
+    if (!Number.isFinite(n) || n < 0 || n === counts?.newPerDay) return
+    try {
+      const c = await saveSettings(Math.min(500, Math.round(n)))
+      setCounts(c)
+      setCap(String(c.newPerDay))
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const back = () => { setScreen('home'); refresh() }
+
+  if (screen === 'review') return <Review mode="review" filters={NO_FILTER} onDone={back} />
+  if (screen === 'practice') {
+    return <Review mode="practice" filters={{ scripts: drillScripts, groups: [], kinds: drillKinds }} onDone={back} />
   }
 
   const pending = counts ? counts.dueNow + Math.min(counts.newAvailable, counts.newLeftToday) : 0
@@ -80,6 +115,47 @@ export default function App() {
       <button className="primary" disabled={!counts || pending === 0} onClick={() => setScreen('review')}>
         {pending > 0 ? 'Réviser — ' + pending + (pending > 1 ? ' cartes' : ' carte') : 'Rien à réviser pour l’instant'}
       </button>
+
+      <section className="deck">
+        <h2>Entraînement libre</h2>
+        <p className="hint">
+          Sans limite et sans échéance : tire au hasard dans ton paquet, aussi longtemps que tu veux.
+          Tes réponses sont enregistrées mais <strong>ne modifient pas le calendrier de révision</strong> —
+          répondre hors échéance ne dit rien de ce que tu as vraiment retenu.
+        </p>
+
+        <div className="picker">
+          {DRILL_SCRIPTS.map(s => (
+            <button
+              key={s.key}
+              className={drillScripts.includes(s.key) ? 'chip on' : 'chip'}
+              onClick={() => setDrillScripts(flip(drillScripts, s.key) as Script[])}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="picker">
+          {DRILL_KINDS.map(k => (
+            <button
+              key={k.key}
+              className={drillKinds.includes(k.key) ? 'chip on' : 'chip'}
+              onClick={() => setDrillKinds(flip(drillKinds, k.key) as CardKind[])}
+            >
+              {k.label}
+              <small>{k.hint}</small>
+            </button>
+          ))}
+        </div>
+        <p className="hint">
+          {drillScripts.length === 0 && drillKinds.length === 0
+            ? 'Rien de sélectionné : tout le paquet.'
+            : 'Ne garde que ce qui est sélectionné.'}
+        </p>
+        <button className="secondary" disabled={!counts || counts.cards === 0} onClick={() => setScreen('practice')}>
+          S’entraîner
+        </button>
+      </section>
 
       <section className="deck">
         <h2>Le paquet</h2>
@@ -122,9 +198,7 @@ export default function App() {
         </button>
 
         <h3>Kanji</h3>
-        <p className="hint">
-          2 136 kanji jōyō, les plus courants d’abord. Sens en français, lectures on et kun.
-        </p>
+        <p className="hint">2 136 kanji jōyō, les plus courants d’abord. Sens en français, lectures on et kun.</p>
         <div className="picker">
           {KANJI_GROUPS.map(g => (
             <button
@@ -144,6 +218,24 @@ export default function App() {
         >
           {busy === 'kanji' ? 'Création…' : 'Ajouter ces kanji'}
         </button>
+
+        <h3>Rythme</h3>
+        <label className="setting">
+          <span>Nouvelles cartes par jour</span>
+          <input
+            type="number"
+            min={0}
+            max={500}
+            value={cap}
+            onChange={e => setCap(e.target.value)}
+            onBlur={commitCap}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+          />
+        </label>
+        <p className="hint">
+          Ce plafond ne concerne que les cartes jamais vues. Les révisions dues arrivent
+          toujours en totalité — c’est ce qui empêche la dette de s’accumuler sans que tu le voies.
+        </p>
       </section>
 
       <footer className="credits">

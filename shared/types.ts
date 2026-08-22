@@ -23,6 +23,7 @@ export interface Counts {
   cards: number
   dueNow: number
   newAvailable: number
+  newPerDay: number
   newLeftToday: number
   learned: number
   reviewsToday: number
@@ -31,6 +32,12 @@ export interface Counts {
 export interface QueueResponse {
   cards: QueueCard[]
   counts: Counts
+}
+
+export interface PracticeRequest {
+  scripts: Script[]
+  groups: string[]
+  kinds: CardKind[]
 }
 
 export interface DeckRequest {

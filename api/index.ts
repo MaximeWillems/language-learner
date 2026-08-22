@@ -6,7 +6,7 @@ import { apply, blank, fromRow, label, previews, type CardRow } from './srs'
 type Env = { Bindings: { DB: D1Database; ASSETS: Fetcher } }
 
 const LANG = 'ja'
-const NEW_PER_DAY = 20
+const DEFAULT_NEW_PER_DAY = 20
 
 interface Row extends CardRow {
   kind: 'reading' | 'recall' | 'meaning'
@@ -51,9 +51,17 @@ const ph = (n: number) => Array(n).fill('?').join(',')
 const who = (h: string | undefined) => h ?? 'local'
 const dayStart = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d.toISOString() }
 
+async function newPerDay(db: D1Database, u: string): Promise<number> {
+  const row = await db.prepare(`SELECT value FROM setting WHERE user_id=? AND key='new_per_day'`)
+    .bind(u).first<{ value: string }>()
+  const n = Number(row?.value)
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_NEW_PER_DAY
+}
+
 async function counts(db: D1Database, u: string): Promise<Counts> {
   const now = new Date().toISOString()
   const day = dayStart()
+  const cap = await newPerDay(db, u)
   const res = await db.batch<{ n: number }>([
     db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=0`).bind(u, LANG),
     db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=0 AND state<>0 AND due<=?`).bind(u, LANG, now),
@@ -67,7 +75,8 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
     cards: n(0),
     dueNow: n(1),
     newAvailable: n(2),
-    newLeftToday: Math.max(0, NEW_PER_DAY - n(3)),
+    newPerDay: cap,
+    newLeftToday: Math.max(0, cap - n(3)),
     learned: n(4),
     reviewsToday: n(5)
   }
@@ -224,6 +233,77 @@ api.post('/review', async c => {
   ])
 
   return c.json({ due: card.due.toISOString(), interval: label(card.due, now) })
+})
+
+api.post('/settings', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const b = await c.req.json<{ newPerDay?: number }>()
+  if (typeof b.newPerDay === 'number' && b.newPerDay >= 0 && b.newPerDay <= 500) {
+    await c.env.DB.prepare(
+      `INSERT INTO setting (user_id, key, value) VALUES (?, 'new_per_day', ?)
+       ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`
+    ).bind(u, String(Math.round(b.newPerDay))).run()
+  }
+  return c.json(await counts(c.env.DB, u))
+})
+
+// Entrainement libre : tire au hasard dans le paquet, sans tenir compte des echeances
+// ni du plafond quotidien. Ne modifie jamais la planification.
+api.get('/practice', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const limit = Math.min(60, Number(c.req.query('limit') ?? 30))
+  const now = new Date()
+  const csv = (v: string | undefined) => (v ? v.split(',').filter(Boolean) : [])
+  const scripts = csv(c.req.query('scripts'))
+  const groups = csv(c.req.query('groups'))
+  const kinds = csv(c.req.query('kinds'))
+
+  const clauses: string[] = []
+  const args: unknown[] = [u, LANG]
+  if (scripts.length) { clauses.push(`ch.kind IN (${ph(scripts.length)})`); args.push(...scripts) }
+  if (groups.length) { clauses.push(`ch.grp IN (${ph(groups.length)})`); args.push(...groups) }
+  if (kinds.length) { clauses.push(`c.kind IN (${ph(kinds.length)})`); args.push(...kinds) }
+  const filter = clauses.length ? ' AND ' + clauses.join(' AND ') : ''
+
+  const rows = (await c.env.DB.prepare(`${SELECT}${filter} ORDER BY RANDOM() LIMIT ?`)
+    .bind(...args, limit).all<Row>()).results
+
+  const kana = rows.some(r => r.kind === 'recall')
+    ? (await c.env.DB.prepare(
+        `SELECT glyph, reading, kind FROM character WHERE lang=? AND kind<>'kanji' AND grp<>'rare'`
+      ).bind(LANG).all<Kana>()).results
+    : []
+
+  const senses = rows.some(r => r.kind === 'meaning')
+    ? (await c.env.DB.prepare(
+        `SELECT json_extract(meanings, '$[0]') AS m FROM character
+          WHERE lang=? AND kind='kanji' AND meanings IS NOT NULL ORDER BY RANDOM() LIMIT 80`
+      ).bind(LANG).all<{ m: string }>()).results.map(r => r.m).filter(Boolean)
+    : []
+
+  return c.json({ cards: rows.map(r => toCard(r, kana, senses, now)), counts: await counts(c.env.DB, u) })
+})
+
+api.post('/practice/log', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const b = await c.req.json<{ cardId: number; answer: string | null; correct: boolean }>()
+  const now = new Date().toISOString()
+
+  const row = await c.env.DB.prepare(`SELECT * FROM card WHERE id=? AND user_id=?`)
+    .bind(b.cardId, u).first<CardRow>()
+  if (!row) return c.json({ error: 'carte introuvable' }, 404)
+
+  await c.env.DB.prepare(
+    `INSERT INTO review_log (card_id, rating, state, due, stability, difficulty,
+                             elapsed_days, last_elapsed_days, scheduled_days,
+                             reviewed_at, answer, correct, mode)
+     VALUES (?,?,?,?,?,?,0,0,0,?,?,?,'practice')`
+  ).bind(
+    row.id, b.correct ? 3 : 1, row.state, row.due, row.stability, row.difficulty,
+    now, b.answer, b.correct ? 1 : 0
+  ).run()
+
+  return c.json({ ok: true })
 })
 
 const app = new Hono<Env>()

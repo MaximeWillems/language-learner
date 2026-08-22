@@ -80,6 +80,18 @@ Pour un kanji, n'importe laquelle de ses lectures on ou kun, avec ou sans l'okur
 (`okona` comme `okonau`). Et un bouton « en fait c'etait juste » pour corriger une
 note trop severe.
 
+**Entrainement libre** — un mode sans echeance ni plafond : tire au hasard dans le
+paquet, en boucle, filtrable par ecriture (hiragana / katakana / kanji) et par type
+d'exercice. Les reponses sont journalisees avec `mode = 'practice'` mais **ne
+modifient jamais la planification** : repondre a une carte hors de son echeance ne
+dit rien de la courbe d'oubli, et laisser FSRS s'en nourrir ferait s'effondrer les
+intervalles. Consequence pour plus tard : seules les lignes `mode = 'review'` doivent
+servir a reentrainer les parametres.
+
+**Rythme** — le plafond de nouvelles cartes par jour se regle depuis l'accueil
+(defaut 20, stocke dans `setting`). Il ne s'applique qu'aux cartes jamais vues ;
+les revisions dues arrivent toujours en totalite.
+
 ## Regenerer les donnees
 
 Les kana se regenerent seuls :
