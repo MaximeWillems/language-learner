@@ -4,54 +4,50 @@ Apprentissage du japonais par répétition espacée : les kana d'abord, les kanj
 phrases ensuite. Prévu pour tourner sur un sous-domaine de `pikilab.app`, entièrement
 sur les offres gratuites de Cloudflare.
 
-## Prérequis
+## Tout piloter depuis Cloudflare
 
-**Node 22 LTS minimum.** La version installée sur cette machine (20.18.1) est trop
-ancienne pour Vite et pour Wrangler : les deux le signalent au démarrage, et
-l'installation laisse de côté un binaire natif nécessaire à la compilation.
-À télécharger sur [nodejs.org](https://nodejs.org) et à extraire à côté de
-l'installation actuelle (`C:\Users\maxime.willems\tools\node\`).
+Node 22 n'est pas installé sur la machine de dev, et Wrangler refuse de démarrer en
+dessous. Tant que c'est le cas, tout passe par le tableau de bord Cloudflare et par
+GitHub — aucune commande locale n'est nécessaire.
 
-## Mise en route
+### 1. Créer la base
+
+Tableau de bord → **Storage & Databases → D1 SQL Database → Create database**, nom
+`kotoba`. Une fois créée, la page affiche un **Database ID** : le recopier dans
+`wrangler.jsonc` à la place de `A_REMPLACER_APRES_npm_run_db_create`, puis pousser.
+
+### 2. Régler le build du Worker
+
+Worker `kotoba` → **Settings → Build** :
+
+- **Build command** : `npm run build`
+- **Deploy command** : `npx wrangler d1 migrations apply kotoba --remote && npx wrangler deploy`
+
+La commande de déploiement applique les migrations avant de publier, donc les tables
+et les kana se chargent tout seuls au premier build, et à chaque nouvelle migration
+ensuite. Le fichier `.node-version` impose Node 22 au serveur de build.
+
+Si la partie migrations échoue, repli : **D1 → kotoba → Console**, et coller à la main
+le contenu de `migrations/0001_init.sql` puis de `migrations/0002_seed_kana.sql`. Dans
+ce cas, retirer la partie `d1 migrations apply` de la commande de déploiement.
+
+### 3. Le sous-domaine et l'accès
+
+Worker → **Settings → Domains & Routes → Add custom domain** : `kotoba.pikilab.app`.
+
+Puis **Zero Trust → Access → Applications** : une application *self-hosted* sur ce
+domaine, avec une règle limitée à ton adresse mail. L'app lit ensuite l'en-tête
+`Cf-Access-Authenticated-User-Email` — aucun code d'authentification à écrire. Sans
+Access, l'app est publique et tout le monde partage l'utilisateur `local`.
+
+## En local (le jour où Node 22 sera installé)
 
 ```
 npm install
-npx wrangler login
-npx wrangler d1 create kotoba
+npx wrangler d1 migrations apply kotoba          # base locale
+npm run dev:api                                   # Worker sur 8787
+npm run dev:web                                   # interface sur 5173
 ```
-
-La dernière commande affiche un `database_id` : le recopier dans `wrangler.jsonc`
-à la place de `A_REMPLACER_APRES_npm_run_db_create`.
-
-Ensuite, créer les tables et charger les 208 kana en local :
-
-```
-npm run db:migrate
-```
-
-Puis lancer les deux processus, dans deux terminaux :
-
-```
-npm run dev:api     # le Worker + la base, sur 8787
-npm run dev:web     # l'interface, sur 5173
-```
-
-L'interface appelle `/api` et Vite le redirige vers le Worker.
-
-## Déploiement
-
-```
-npm run db:migrate:remote
-npm run deploy
-```
-
-Puis, dans le tableau de bord Cloudflare :
-
-- **Workers & Pages → kotoba → Settings → Domains** : ajouter `kotoba.pikilab.app`
-- **Zero Trust → Access → Applications** : créer une application *self-hosted* sur ce
-  domaine, avec une règle limitée à ton adresse mail. L'app lit ensuite l'en-tête
-  `Cf-Access-Authenticated-User-Email` pour identifier l'utilisateur — aucun code
-  d'authentification à écrire. Sans Access, tout tombe sur l'utilisateur `local`.
 
 ## Structure
 

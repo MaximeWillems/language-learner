@@ -11,7 +11,7 @@
     {
       "binding": "DB",
       "database_name": "kotoba",
-      "database_id": "A_REMPLACER_APRES_npm_run_db_create"
+      "database_id": "52e28231-fb73-435a-858c-e138033d2550"
     }
   ],
   "observability": { "enabled": true }
