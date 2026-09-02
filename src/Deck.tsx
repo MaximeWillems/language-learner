@@ -63,6 +63,10 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
     ? mine.filter(d => d.script !== 'sentence')
     : mine.filter(d => d.script === 'sentence')
   const owned = scope.reduce((a, d) => a + d.n, 0)
+  const mineScripts: Script[] = chars ? ['hiragana', 'katakana', 'kanji'] : ['sentence']
+  const waiting = (counts?.pending ?? [])
+    .filter(p => mineScripts.includes(p.script))
+    .reduce((a, p) => a + p.n, 0)
   const kinds = chars ? CHAR_KINDS : SENTENCE_KINDS
   const available = (k: CardKind) => scope.some(d => d.kind === k && d.n > 0)
   const active = drill.filter(available)
@@ -85,6 +89,11 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
     <>
       <section className="panel">
         <h2>{chars ? 'Ajouter des caractères' : 'Ajouter des phrases'}</h2>
+        <p className="hint">
+          {waiting > 0
+            ? `${waiting} élément${waiting > 1 ? 's' : ''} en attente d’être introduit${waiting > 1 ? 's' : ''}, au rythme que tu as fixé.`
+            : 'Ce que tu ajoutes ici entre dans la file d’attente ; les cartes se créent au fur et à mesure.'}
+        </p>
 
         {chars ? (
           <>
@@ -155,7 +164,11 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
         </p>
 
         {owned === 0 ? (
-          <p className="hint">Rien à travailler pour l’instant : commence par en ajouter ci-dessus.</p>
+          <p className="hint">
+            {waiting > 0
+              ? 'Rien encore introduit. L’entraînement libre porte sur ce que tu as déjà vu au moins une fois — fais une séance de révision d’abord.'
+              : 'Rien à travailler pour l’instant : commence par en ajouter ci-dessus.'}
+          </p>
         ) : (
           <>
             <div className="picker">

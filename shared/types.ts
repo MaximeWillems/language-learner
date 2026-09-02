@@ -60,8 +60,14 @@ export interface Review {
   mode: string
 }
 
+export interface Pending {
+  script: Script
+  n: number
+}
+
 export interface Counts {
   deck: DeckSlice[]
+  pending: Pending[]
   hard: number
   suspended: number
   cards: number

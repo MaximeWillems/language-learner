@@ -4,6 +4,19 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.9.1 — 22 aout 2026
+
+- **Correction** : le quota d'ecriture quotidien de D1 a ete atteint. Ajouter du contenu
+  au paquet creait immediatement deux cartes par element — cocher les quatre niveaux de
+  phrases ecrivait **12 000 lignes** pour des cartes qu'on ne verrait pas avant un an au
+  rythme de 20 nouveautes par jour.
+- Le paquet enregistre desormais une **selection** (une ligne par groupe choisi), et la
+  carte n'est creee qu'au moment ou l'element est reellement introduit dans une seance.
+  La meme selection coute 6 lignes au lieu de 12 000 ; une seance de 20 nouveautes en
+  ecrit 20.
+- Les ecrans distinguent ce qui est **choisi** de ce qui est **deja introduit**.
+- Les cartes creees avant ce changement restent valides : rien n'est a refaire.
+
 ## 0.9.0 — 22 aout 2026
 
 - **Le parcours guide**, en prototype : deux chapitres, cinq lecons ecrites a la main.

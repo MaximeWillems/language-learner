@@ -70,6 +70,58 @@ const ph = (n: number) => Array(n).fill('?').join(',')
 const who = (h: string | undefined) => h ?? 'local'
 const dayStart = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d.toISOString() }
 
+const KINDS: Record<string, string[]> = {
+  hiragana: ['reading', 'recall'],
+  katakana: ['reading', 'recall'],
+  kanji: ['meaning', 'reading'],
+  sentence: ['meaning', 'cloze'],
+  word: ['meaning', 'reading']
+}
+
+const PENDING = `
+    FROM content ct
+    JOIN deck_selection d
+      ON d.user_id = ? AND d.lang = ct.lang AND d.script = ct.script AND d.grp = ct.grp
+   WHERE ct.lang = ?
+     AND NOT EXISTS (
+       SELECT 1 FROM card k
+        WHERE k.user_id = d.user_id AND k.item_type = ct.item_type AND k.item_id = ct.item_id
+     )`
+
+/**
+ * Cree les cartes des elements sur le point d'etre servis, et rien de plus. Avant, tout
+ * le contenu selectionne etait materialise d'un coup : cocher les quatre niveaux de
+ * phrases ecrivait 12 000 lignes pour un an de cartes.
+ */
+async function materialize(db: D1Database, u: string, want: number, filter: string, args: unknown[]) {
+  if (want <= 0) return
+
+  const rows = (await db.prepare(
+    `SELECT * FROM (
+       SELECT ct.item_type, ct.item_id, ct.script,
+              ROW_NUMBER() OVER (PARTITION BY ct.script ORDER BY ct.ord) AS rn
+         ${PENDING}${filter}
+     )
+      WHERE rn <= ? ORDER BY rn, script LIMIT ?`
+  ).bind(u, LANG, ...args, want, want).all<{ item_type: string; item_id: number; script: string }>()).results
+
+  if (!rows.length) return
+
+  const now = new Date()
+  const due = blank(now).due.toISOString()
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  )
+  const stmts = []
+  for (const r of rows) {
+    for (const kind of KINDS[r.script] ?? ['reading']) {
+      stmts.push(insert.bind(u, LANG, r.item_type, r.item_id, kind, due, now.toISOString()))
+    }
+  }
+  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
+}
+
 async function newPerDay(db: D1Database, u: string): Promise<number> {
   const row = await db.prepare(`SELECT value FROM setting WHERE user_id=? AND key='new_per_day'`)
     .bind(u).first<{ value: string }>()
@@ -89,7 +141,8 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
     db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND state<>0`).bind(u, LANG),
     db.prepare(`SELECT COUNT(*) n FROM review_log l JOIN card c ON c.id=l.card_id WHERE c.user_id=? AND l.reviewed_at>=?`).bind(u, day),
     db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=0 AND lapses>=?`).bind(u, LANG, LEECH),
-    db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=1`).bind(u, LANG)
+    db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=1`).bind(u, LANG),
+    db.prepare(`SELECT COUNT(*) n ${PENDING}`).bind(u, LANG)
   ])
   const n = (i: number) => res[i].results[0]?.n ?? 0
 
@@ -102,11 +155,19 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
       GROUP BY script, kind`
   ).bind(now, u, LANG).all<Counts['deck'][number]>()
 
+  const pending = await db.prepare(
+    `SELECT ct.script AS script, COUNT(*) AS n ${PENDING} GROUP BY ct.script`
+  ).bind(u, LANG).all<{ script: string; n: number }>()
+
+  const waiting = new Map<string, number>()
+  for (const r of pending.results) waiting.set(r.script, r.n)
+
   return {
     deck: deck.results,
+    pending: [...waiting].map(([script, n]) => ({ script: script as Script, n })),
     cards: n(0),
     dueNow: n(1),
-    newAvailable: n(2),
+    newAvailable: n(2) + n(8) * 2,
     newPerDay: cap,
     newLeftToday: Math.max(0, cap - n(3)),
     learned: n(4),
@@ -264,55 +325,20 @@ api.post('/deck', async c => {
   const body = await c.req.json<DeckRequest>()
   const scripts = body.scripts?.length ? body.scripts : ['hiragana']
   const groups = body.groups?.length ? body.groups : ['gojuon']
-  const now = new Date()
-  const due = blank(now).due.toISOString()
+  const now = new Date().toISOString()
 
-  const charScripts = scripts.filter(s => s !== 'sentence')
-  const charGroups = groups.filter(g => !g.startsWith('level'))
-  const levels = groups
-    .filter(g => g.startsWith('level'))
-    .map(g => Number(g.slice(5)))
-    .filter(n => Number.isFinite(n))
-
-  const insertChar = c.env.DB.prepare(
-    `INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
-     VALUES (?, ?, 'character', ?, ?, ?, ?)`
+  // On enregistre ce qui est choisi, pas les cartes : elles naitront a l'introduction.
+  const insert = c.env.DB.prepare(
+    `INSERT OR IGNORE INTO deck_selection (user_id, lang, script, grp, added_at) VALUES (?, ?, ?, ?, ?)`
   )
-  const insertSentence = c.env.DB.prepare(
-    `INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
-     VALUES (?, ?, 'sentence', ?, ?, ?, ?)`
-  )
-
   const stmts = []
-
-  if (charScripts.length && charGroups.length) {
-    const chars = await c.env.DB.prepare(
-      `SELECT id, kind FROM character
-        WHERE lang=? AND kind IN (${ph(charScripts.length)}) AND grp IN (${ph(charGroups.length)})
-        ORDER BY ord`
-    ).bind(LANG, ...charScripts, ...charGroups).all<{ id: number; kind: string }>()
-
-    for (const ch of chars.results) {
-      const kinds = ch.kind === 'kanji' ? ['meaning', 'reading'] : ['reading', 'recall']
-      for (const kind of kinds) {
-        stmts.push(insertChar.bind(u, LANG, ch.id, kind, due, now.toISOString()))
-      }
+  for (const script of scripts) {
+    for (const grp of groups) {
+      const fits = script === 'sentence' ? grp.startsWith('level') : !grp.startsWith('level')
+      if (fits) stmts.push(insert.bind(u, LANG, script, grp, now))
     }
   }
-
-  if (scripts.includes('sentence') && levels.length) {
-    const sentences = await c.env.DB.prepare(
-      `SELECT id FROM sentence WHERE lang=? AND level IN (${ph(levels.length)}) ORDER BY id`
-    ).bind(LANG, ...levels).all<{ id: number }>()
-
-    for (const s of sentences.results) {
-      for (const kind of ['meaning', 'cloze']) {
-        stmts.push(insertSentence.bind(u, LANG, s.id, kind, due, now.toISOString()))
-      }
-    }
-  }
-
-  for (let i = 0; i < stmts.length; i += 100) await c.env.DB.batch(stmts.slice(i, i + 100))
+  if (stmts.length) await c.env.DB.batch(stmts)
 
   return c.json(await counts(c.env.DB, u))
 })
@@ -344,6 +370,8 @@ api.get('/queue', async c => {
   ).bind(u, LANG, ...f.args, now.toISOString(), limit).all<Row>()
 
   const room = Math.min(ct.newLeftToday, Math.max(0, limit - reviews.results.length))
+  if (room > 0) await materialize(c.env.DB, u, Math.ceil(room / 2), f.sql.replace(/script/g, 'ct.script'), f.args)
+
   const fresh = room > 0
     ? (await c.env.DB.prepare(
         NEW_CARDS.replace('${FILTER}', f.sql)

@@ -30,9 +30,14 @@ export default function Home({ counts, onStart }: {
         {TRACKS.map(t => {
           const slice = deck.filter(d => t.scripts.includes(d.script))
           const owned = slice.reduce((a, d) => a + d.n, 0)
-          if (!owned) return null
+          // deux cartes par element encore a introduire
+          const waiting = (counts?.pending ?? [])
+            .filter(p => t.scripts.includes(p.script))
+            .reduce((a, p) => a + p.n, 0) * 2
+          if (!owned && !waiting) return null
           const due = slice.reduce((a, d) => a + d.due, 0)
-          const fresh = counts ? Math.min(slice.reduce((a, d) => a + d.fresh, 0), counts.newLeftToday) : 0
+          const ready = slice.reduce((a, d) => a + d.fresh, 0) + waiting
+          const fresh = counts ? Math.min(ready, counts.newLeftToday) : 0
           const total = due + fresh
           return (
             <div className="session" key={t.key}>

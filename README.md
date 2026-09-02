@@ -196,6 +196,22 @@ Toute source ajoutee plus tard (JMdict, KanjiVG) porte la meme obligation.
 `Entrée` valide la réponse, puis accepte la note suggérée. `1` `2` `3` `4` choisissent
 directement Encore / Dur / Bon / Facile.
 
+## Le budget d'ecriture D1
+
+L'offre gratuite plafonne a **100 000 lignes ecrites par jour**, remis a zero a minuit
+UTC. C'est large pour l'usage courant — une revision coute deux lignes — mais deux choses
+en consomment beaucoup :
+
+- **l'import du corpus de phrases** (migration 0007) : 50 641 lignes, dont 38 771 pour la
+  seule table de liaison phrase / mot. C'est une depense unique, mais elle occupe la
+  moitie du quota le jour ou elle passe ;
+- **la constitution du paquet**, jusqu'a la version 0.9.0 : deux cartes creees d'avance
+  par element selectionne. Corrige en 0.9.1 — les cartes naissent a l'introduction.
+
+En pratique : ne pas lancer un gros import le meme jour qu'une grosse session de mise au
+point. Et toute migration future qui depasse quelques milliers de lignes merite d'etre
+comptee avant d'etre poussee.
+
 ## Simplifications assumées
 
 - **La journée commence à minuit UTC**, pas à minuit heure française. Le plafond de
