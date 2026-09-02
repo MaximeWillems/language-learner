@@ -4,6 +4,19 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.6.1 — 22 aout 2026
+
+- **Deux parcours separes** au lieu d'une seule seance melangee : « Caracteres » et
+  « Phrases », chacun avec son propre compteur et son propre bouton. Travailler un
+  kanji isole et une phrase complete ne demande pas le meme etat d'esprit.
+- La file de revision accepte les memes filtres que l'entrainement libre ; les deux
+  routes partagent desormais la meme construction de filtre.
+- Deux cartes d'un meme element ne se suivent plus : le texte a trous devoilait la
+  traduction que la carte de comprehension allait demander juste apres, et le sens
+  d'un kanji donnait sa lecture.
+- Le plafond quotidien de nouveautes reste global : il se repartit sur le parcours
+  que tu ouvres, il ne double pas.
+
 ## 0.6.0 — 22 aout 2026
 
 - **Les phrases.** 6 000 phrases reelles traduites en francais, classees en quatre

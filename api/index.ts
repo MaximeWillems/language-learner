@@ -59,7 +59,7 @@ const NEW_CARDS = `
   SELECT * FROM (
     SELECT ${COLS},
            ROW_NUMBER() OVER (PARTITION BY script ORDER BY ord, kind) AS rn
-      ${FROM} AND state = 0
+      ${FROM}\${FILTER} AND state = 0
   )
    WHERE rn <= ?
    ORDER BY rn, script
@@ -91,11 +91,13 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
   const n = (i: number) => res[i].results[0]?.n ?? 0
 
   const deck = await db.prepare(
-    `SELECT script, kind, COUNT(*) AS n
+    `SELECT script, kind, COUNT(*) AS n,
+            SUM(CASE WHEN state <> 0 AND due <= ? THEN 1 ELSE 0 END) AS due,
+            SUM(CASE WHEN state = 0 THEN 1 ELSE 0 END) AS fresh
        FROM card_item
       WHERE user_id = ? AND lang = ? AND suspended = 0
       GROUP BY script, kind`
-  ).bind(u, LANG).all<Counts['deck'][number]>()
+  ).bind(now, u, LANG).all<Counts['deck'][number]>()
 
   return {
     deck: deck.results,
@@ -135,6 +137,20 @@ function blankIndex(cardId: number, words: string[]): number {
   const good = all.filter(i => HAS_KANJI.test(words[i]) || words[i].length >= 2)
   const pool = good.length ? good : all
   return pool[cardId % pool.length]
+}
+
+// Deux cartes d'un meme element ne doivent pas se suivre : le texte a trous devoile la
+// traduction que la carte de comprehension va demander, et le sens d'un kanji donne sa
+// lecture. On decale la suivante des qu'une repetition apparait.
+function spread(rows: Row[]): Row[] {
+  const out: Row[] = []
+  const rest = [...rows]
+  while (rest.length) {
+    const last = out[out.length - 1]
+    const k = last ? rest.findIndex(r => r.item_id !== last.item_id) : 0
+    out.push(rest.splice(k < 0 ? 0 : k, 1)[0])
+  }
+  return out
 }
 
 function toCard(row: Row, p: Pools, now: Date): QueueCard {
@@ -287,22 +303,40 @@ api.post('/deck', async c => {
   return c.json(await counts(c.env.DB, u))
 })
 
+// Filtre commun a la file de revision et a l'entrainement : on ne melange pas
+// caracteres et phrases dans une meme seance sauf demande explicite.
+function selection(q: (k: string) => string | undefined) {
+  const csv = (v: string | undefined) => (v ? v.split(',').filter(Boolean) : [])
+  const scripts = csv(q('scripts'))
+  const groups = csv(q('groups'))
+  const kinds = csv(q('kinds'))
+  const clauses: string[] = []
+  const args: unknown[] = []
+  if (scripts.length) { clauses.push(`script IN (${ph(scripts.length)})`); args.push(...scripts) }
+  if (groups.length) { clauses.push(`grp IN (${ph(groups.length)})`); args.push(...groups) }
+  if (kinds.length) { clauses.push(`kind IN (${ph(kinds.length)})`); args.push(...kinds) }
+  return { sql: clauses.length ? ' AND ' + clauses.join(' AND ') : '', args }
+}
+
 api.get('/queue', async c => {
   const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
   const limit = Math.min(60, Number(c.req.query('limit') ?? 20))
   const now = new Date()
   const ct = await counts(c.env.DB, u)
+  const f = selection(k => c.req.query(k))
 
-  const reviews = await c.env.DB.prepare(`${SELECT} AND state<>0 AND due<=? ORDER BY due LIMIT ?`)
-    .bind(u, LANG, now.toISOString(), limit).all<Row>()
+  const reviews = await c.env.DB.prepare(
+    `${SELECT}${f.sql} AND state<>0 AND due<=? ORDER BY due LIMIT ?`
+  ).bind(u, LANG, ...f.args, now.toISOString(), limit).all<Row>()
 
   const room = Math.min(ct.newLeftToday, Math.max(0, limit - reviews.results.length))
   const fresh = room > 0
-    ? (await c.env.DB.prepare(NEW_CARDS).bind(u, LANG, room, room).all<Row>()).results
+    ? (await c.env.DB.prepare(
+        NEW_CARDS.replace('${FILTER}', f.sql)
+      ).bind(u, LANG, ...f.args, room, room).all<Row>()).results
     : []
 
-  const queue = interleave(reviews.results, fresh)
-
+  const queue = spread(interleave(reviews.results, fresh))
   const p = await buildPools(c.env.DB, queue)
 
   return c.json({
@@ -368,20 +402,10 @@ api.get('/practice', async c => {
   const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
   const limit = Math.min(60, Number(c.req.query('limit') ?? 30))
   const now = new Date()
-  const csv = (v: string | undefined) => (v ? v.split(',').filter(Boolean) : [])
-  const scripts = csv(c.req.query('scripts'))
-  const groups = csv(c.req.query('groups'))
-  const kinds = csv(c.req.query('kinds'))
+  const f = selection(k => c.req.query(k))
 
-  const clauses: string[] = []
-  const args: unknown[] = [u, LANG]
-  if (scripts.length) { clauses.push(`script IN (${ph(scripts.length)})`); args.push(...scripts) }
-  if (groups.length) { clauses.push(`grp IN (${ph(groups.length)})`); args.push(...groups) }
-  if (kinds.length) { clauses.push(`kind IN (${ph(kinds.length)})`); args.push(...kinds) }
-  const filter = clauses.length ? ' AND ' + clauses.join(' AND ') : ''
-
-  const rows = (await c.env.DB.prepare(`${SELECT}${filter} ORDER BY RANDOM() LIMIT ?`)
-    .bind(...args, limit).all<Row>()).results
+  const rows = spread((await c.env.DB.prepare(`${SELECT}${f.sql} ORDER BY RANDOM() LIMIT ?`)
+    .bind(u, LANG, ...f.args, limit).all<Row>()).results)
 
   const p = await buildPools(c.env.DB, rows)
 

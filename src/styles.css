@@ -102,30 +102,37 @@ body {
   font-size: .88rem;
 }
 
-/* ---------- l'action du jour ---------- */
+/* ---------- les parcours du jour ---------- */
 
-.today {
+.tracks { display: flex; flex-direction: column; gap: var(--s2); }
+
+.session {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--s3);
+  gap: var(--s1);
   padding: var(--s4) var(--s3);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r);
 }
 
-.today .count { display: flex; flex-direction: column; align-items: center; gap: 0; }
-.today .n {
+.session .who {
+  font-size: .72rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.session .n {
   font-family: var(--f-mono);
-  font-size: 3.4rem;
+  font-size: 3rem;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
   color: var(--ai);
 }
-.today .l { font-size: .9rem; color: var(--muted); }
-.today .primary { width: 100%; }
-.today .split { margin: 0; font-size: .74rem; color: var(--muted); }
+.session .l { font-size: .82rem; color: var(--muted); text-align: center; }
+.session .primary { width: 100%; margin-top: var(--s2); }
+.session:has(.primary:disabled) .n { color: var(--muted); }
 
 /* ---------- suivi ---------- */
 
@@ -494,10 +501,11 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   .head h1 { font-size: 1.9rem; }
   .sub { font-size: 1rem; }
 
-  .today { padding: var(--s5) var(--s4); gap: var(--s4); }
-  .today .n { font-size: 4.6rem; }
-  .today .l { font-size: 1rem; }
-  .today .primary { padding: 1rem 1.2rem; font-size: 1.05rem; }
+  .tracks { gap: var(--s3); }
+  .session { padding: var(--s4); gap: var(--s1); }
+  .session .n { font-size: 3.6rem; }
+  .session .l { font-size: .88rem; }
+  .session .primary { padding: .9rem 1.2rem; font-size: 1rem; }
 
   /* en colonne etroite, le suivi se lit mieux en lignes qu'en trois cases */
   .track {
@@ -553,7 +561,7 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 
 @media (min-width: 1400px) {
   .page { max-width: 68rem; }
-  .today .n { font-size: 5.4rem; }
+  .session .n { font-size: 4.2rem; }
 }
 
 /* ---------- cartes de phrase ---------- */

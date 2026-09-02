@@ -53,6 +53,11 @@ const LABELS: Record<string, string> = {
   sentence: 'phrases'
 }
 
+const TRACKS: { key: string; label: string; action: string; scripts: Script[] }[] = [
+  { key: 'chars', label: 'Caractères', action: 'Réviser les caractères', scripts: ['hiragana', 'katakana', 'kanji'] },
+  { key: 'sentences', label: 'Phrases', action: 'Réviser les phrases', scripts: ['sentence'] }
+]
+
 const flip = (list: string[], v: string) =>
   list.includes(v) ? list.filter(x => x !== v) : [...list, v]
 
@@ -67,6 +72,7 @@ export default function App() {
   const [drillScripts, setDrillScripts] = useState<Script[]>([])
   const [drillKinds, setDrillKinds] = useState<CardKind[]>([])
   const [cap, setCap] = useState('20')
+  const [session, setSession] = useState<PracticeRequest>({ scripts: [], groups: [], kinds: [] })
   const [busy, setBusy] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -125,10 +131,9 @@ export default function App() {
     .map(x => x.n + ' ' + LABELS[x.k])
     .join(' · ')
 
-  if (screen === 'review') return <Review mode="review" filters={drillFilters} onDone={back} />
+  if (screen === 'review') return <Review mode="review" filters={session} onDone={back} />
   if (screen === 'practice') return <Review mode="practice" filters={drillFilters} onDone={back} />
 
-  const pending = counts ? counts.dueNow + Math.min(counts.newAvailable, counts.newLeftToday) : 0
   const stale = live !== null && live !== VERSION
 
   return (
@@ -150,21 +155,38 @@ export default function App() {
 
       {error && <p className="error">{error}</p>}
 
-      <section className="today">
-        <div className="count">
-          <span className="n">{counts ? pending : '—'}</span>
-          <span className="l">
-            {pending > 1 ? 'cartes à réviser' : pending === 1 ? 'carte à réviser' : 'rien à réviser'}
-          </span>
-        </div>
-        <button className="primary" disabled={!counts || pending === 0} onClick={() => setScreen('review')}>
-          {pending > 0 ? 'Commencer la séance' : 'Tout est à jour'}
-        </button>
-        {counts && counts.dueNow > 0 && counts.newAvailable > 0 && (
-          <p className="split mono">
-            {counts.dueNow} en révision · {Math.min(counts.newAvailable, counts.newLeftToday)} nouvelles
+      <section className="tracks">
+        {deck.length === 0 && (
+          <p className="hint">
+            Ton paquet est vide. Ouvre « Gérer le paquet » plus bas pour choisir ce que tu veux apprendre.
           </p>
         )}
+        {TRACKS.map(t => {
+          const slice = deck.filter(d => t.scripts.includes(d.script))
+          const owned = slice.reduce((a, d) => a + d.n, 0)
+          if (!owned) return null
+          const due = slice.reduce((a, d) => a + d.due, 0)
+          const fresh = counts ? Math.min(slice.reduce((a, d) => a + d.fresh, 0), counts.newLeftToday) : 0
+          const total = due + fresh
+          return (
+            <div className="session" key={t.key}>
+              <span className="who">{t.label}</span>
+              <span className="n">{total}</span>
+              <span className="l">
+                {total === 0
+                  ? 'rien à réviser'
+                  : `${due} en révision · ${fresh} nouvelle${fresh > 1 ? 's' : ''}`}
+              </span>
+              <button
+                className="primary"
+                disabled={total === 0}
+                onClick={() => { setSession({ scripts: t.scripts, groups: [], kinds: [] }); setScreen('review') }}
+              >
+                {total === 0 ? 'À jour' : t.action}
+              </button>
+            </div>
+          )
+        })}
       </section>
 
       {counts && (

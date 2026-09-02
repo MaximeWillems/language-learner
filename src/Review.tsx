@@ -62,7 +62,7 @@ export default function Review({ mode, filters, onDone }: {
   const box = useRef<HTMLInputElement>(null)
   const repeats = useRef(new Map<number, number>())
 
-  const fetchBatch = () => (practice ? getPractice(filters, BATCH) : getQueue(BATCH))
+  const fetchBatch = () => (practice ? getPractice(filters, BATCH) : getQueue(filters, BATCH))
 
   useEffect(() => {
     fetchBatch().then(r => setCards(r.cards)).catch(e => setError(String(e)))

@@ -27,6 +27,8 @@ export interface DeckSlice {
   script: Script
   kind: CardKind
   n: number
+  due: number
+  fresh: number
 }
 
 export interface Counts {
