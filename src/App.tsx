@@ -9,12 +9,13 @@ import Review from './Review'
 import Settings from './Settings'
 import Stats from './Stats'
 
-type Tab = 'home' | 'course' | 'chars' | 'sentences' | 'stats' | 'settings'
+type Tab = 'home' | 'course' | 'chars' | 'words' | 'sentences' | 'stats' | 'settings'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'home', label: 'Réviser' },
   { key: 'course', label: 'Parcours' },
   { key: 'chars', label: 'Caractères' },
+  { key: 'words', label: 'Vocabulaire' },
   { key: 'sentences', label: 'Phrases' },
   { key: 'stats', label: 'Statistiques' },
   { key: 'settings', label: 'Réglages' }
@@ -89,6 +90,9 @@ export default function App() {
       {tab === 'course' && <Course setCounts={setCounts} onError={setError} />}
       {tab === 'chars' && (
         <Deck family="chars" counts={counts} setCounts={setCounts} onStart={start} onError={setError} />
+      )}
+      {tab === 'words' && (
+        <Deck family="words" counts={counts} setCounts={setCounts} onStart={start} onError={setError} />
       )}
       {tab === 'sentences' && (
         <Deck family="sentences" counts={counts} setCounts={setCounts} onStart={start} onError={setError} />

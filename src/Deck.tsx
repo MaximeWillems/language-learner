@@ -30,6 +30,18 @@ const LEVELS = [
   { key: 'level4', label: 'Niveau 4', hint: '1200 · kanji avancés' }
 ]
 
+const WORD_BANDS = [
+  { key: 'w1', label: 'Les 150 essentiels', hint: '62 % de tout ce que tu liras' },
+  { key: 'w2', label: 'Courants', hint: '350 mots' },
+  { key: 'w3', label: 'Utiles', hint: '695 mots' },
+  { key: 'w4', label: 'Le reste', hint: '1 306 mots' }
+]
+
+const WORD_KINDS: { key: CardKind; label: string; hint: string }[] = [
+  { key: 'meaning', label: 'Sens', hint: 'le mot vers le français' },
+  { key: 'reading', label: 'Lecture', hint: 'comment il se prononce' }
+]
+
 const SENTENCE_KINDS: { key: CardKind; label: string; hint: string }[] = [
   { key: 'meaning', label: 'Comprendre', hint: 'la phrase vers le français' },
   { key: 'cloze', label: 'Texte à trous', hint: 'le mot manquant' }
@@ -44,7 +56,7 @@ const CHAR_KINDS: { key: CardKind; label: string; hint: string }[] = [
 const flip = (l: string[], v: string) => (l.includes(v) ? l.filter(x => x !== v) : [...l, v])
 
 export default function Deck({ family, counts, setCounts, onStart, onError }: {
-  family: 'chars' | 'sentences'
+  family: 'chars' | 'sentences' | 'words'
   counts: Counts | null
   setCounts: (c: Counts) => void
   onStart: (filters: PracticeRequest, mode: 'practice') => void
@@ -54,20 +66,22 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
   const [kanaGroups, setKanaGroups] = useState<string[]>(['gojuon'])
   const [kanjiGroups, setKanjiGroups] = useState<string[]>(['grade1'])
   const [levels, setLevels] = useState<string[]>(['level1'])
+  const [bands, setBands] = useState<string[]>(['w1'])
   const [drill, setDrill] = useState<CardKind[]>([])
   const [busy, setBusy] = useState('')
 
   const chars = family === 'chars'
+  const words = family === 'words'
+  const mineScripts: Script[] = chars
+    ? ['hiragana', 'katakana', 'kanji']
+    : words ? ['word'] : ['sentence']
   const mine = counts?.deck ?? []
-  const scope = chars
-    ? mine.filter(d => d.script !== 'sentence')
-    : mine.filter(d => d.script === 'sentence')
+  const scope = mine.filter(d => mineScripts.includes(d.script))
   const owned = scope.reduce((a, d) => a + d.n, 0)
-  const mineScripts: Script[] = chars ? ['hiragana', 'katakana', 'kanji'] : ['sentence']
   const waiting = (counts?.pending ?? [])
     .filter(p => mineScripts.includes(p.script))
     .reduce((a, p) => a + p.n, 0)
-  const kinds = chars ? CHAR_KINDS : SENTENCE_KINDS
+  const kinds = chars ? CHAR_KINDS : words ? WORD_KINDS : SENTENCE_KINDS
   const available = (k: CardKind) => scope.some(d => d.kind === k && d.n > 0)
   const active = drill.filter(available)
   const matching = scope
@@ -88,7 +102,7 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
   return (
     <>
       <section className="panel">
-        <h2>{chars ? 'Ajouter des caractères' : 'Ajouter des phrases'}</h2>
+        <h2>{chars ? 'Ajouter des caractères' : words ? 'Ajouter du vocabulaire' : 'Ajouter des phrases'}</h2>
         <p className="hint">
           {waiting > 0
             ? `${waiting} élément${waiting > 1 ? 's' : ''} en attente d’être introduit${waiting > 1 ? 's' : ''}, au rythme que tu as fixé.`
@@ -134,6 +148,27 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
               {busy === 'kanji' ? 'Ajout en cours…' : 'Ajouter ces kanji'}
             </button>
           </>
+        ) : words ? (
+          <>
+            <p className="hint">
+              2 499 mots tirés des phrases du corpus, classés par fréquence réelle : les
+              premiers sont ceux que tu croiseras partout. Les 150 premiers sont traduits à
+              la main — pour une particule, « marque le thème de la phrase » vaut mieux que
+              n’importe quelle traduction mot à mot.
+            </p>
+            <div className="picker">
+              {WORD_BANDS.map(g => (
+                <button key={g.key} className={bands.includes(g.key) ? 'chip on' : 'chip'}
+                  onClick={() => setBands(flip(bands, g.key))}>
+                  {g.label}<small>{g.hint}</small>
+                </button>
+              ))}
+            </div>
+            <button className="secondary" disabled={busy !== '' || !bands.length}
+              onClick={() => add('word', { scripts: ['word'], groups: bands })}>
+              {busy === 'word' ? 'Ajout en cours…' : 'Ajouter ce vocabulaire'}
+            </button>
+          </>
         ) : (
           <>
             <p className="hint">
@@ -159,7 +194,7 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
       <section className="panel">
         <h2>Entraînement libre</h2>
         <p className="hint">
-          Sans limite et sans échéance, dans {chars ? 'tes caractères' : 'tes phrases'}.
+          Sans limite et sans échéance, dans {chars ? 'tes caractères' : words ? 'ton vocabulaire' : 'tes phrases'}.
           Tes réponses sont enregistrées mais <strong>ne modifient pas le calendrier de révision</strong>.
         </p>
 
@@ -181,11 +216,7 @@ export default function Deck({ family, counts, setCounts, onStart, onError }: {
               ))}
             </div>
             <button className="secondary wide" disabled={matching === 0}
-              onClick={() => onStart({
-                scripts: chars ? ['hiragana', 'katakana', 'kanji'] : ['sentence'],
-                groups: [],
-                kinds: active
-              }, 'practice')}>
+              onClick={() => onStart({ scripts: mineScripts, groups: [], kinds: active }, 'practice')}>
               {matching === 0 ? 'Aucune carte ne correspond' : 'S’entraîner — ' + matching + (matching > 1 ? ' cartes' : ' carte')}
             </button>
           </>

@@ -193,10 +193,11 @@ export default function Review({ mode, filters, onDone }: {
 
   const answer = answerOf(card)
   const sentence = card.script === 'sentence'
+  const word = card.script === 'word'
   const choiceClass = (ch: string) => {
     const parts = ['choice']
     if (card.kind === 'recall') parts.push('jp')
-    if (card.kind === 'cloze') parts.push('jp', 'word')
+    if (card.kind === 'cloze') parts.push('jp', 'token')
     if (revealed && ch === answer) parts.push('good')
     if (revealed && ch === input && !correct) parts.push('bad')
     return parts.join(' ')
@@ -233,6 +234,8 @@ export default function Review({ mode, filters, onDone }: {
           <span className="romaji">{card.reading}</span>
         ) : sentence ? (
           <p className="jp phrase">{card.text}</p>
+        ) : word ? (
+          <span className="word jp">{card.text}</span>
         ) : (
           <span className="glyph jp">{card.text}</span>
         )}
@@ -276,7 +279,24 @@ export default function Review({ mode, filters, onDone }: {
             {sentence ? (
               <div className="detail">
                 <span className="sens">{card.translation}</span>
-                {card.kind === 'cloze' && <span className="lectures jp">{card.text}</span>}
+                {card.kind === 'cloze' && (
+                  <>
+                    <span className="lectures jp">{card.text}</span>
+                    {card.blankGloss && (
+                      <span className="sens">
+                        <b className="jp">{card.words[card.blank]}</b> — {card.blankGloss}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : word ? (
+              <div className="detail">
+                <span className="sens">
+                  {card.meanings[0]}
+                  {card.meaningLang === 'en' && <em> — sens en anglais, faute de traduction française</em>}
+                </span>
+                {card.reading && <span className="lectures"><b className="jp">{card.reading}</b></span>}
               </div>
             ) : card.script === 'kanji' ? (
               <div className="detail">

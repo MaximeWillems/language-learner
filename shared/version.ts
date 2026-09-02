@@ -5,4 +5,4 @@
  * x.y.z — z : correction, y : nouvelle fonction, x : refonte.
  * A modifier dans le meme commit que le changement, avec une ligne dans CHANGELOG.md.
  */
-export const VERSION = '0.10.0'
+export const VERSION = '0.11.0'

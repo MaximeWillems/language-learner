@@ -4,6 +4,35 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.11.0 — 2 septembre 2026
+
+**Le vocabulaire.** La table des mots existait depuis la 0.6.0 mais etait vide de sens :
+2 509 mots, dont 19 traduits. C'etait le plus gros trou du modele, et c'etait ce qui avait
+ete demande sous le nom de « decouverte de mots ».
+
+- Un onglet **Vocabulaire** a part entiere : 2 499 mots tires des phrases, classes par
+  frequence reelle, selectionnables par tranches. Deux cartes par mot, le sens et la
+  lecture — une seule pour les mots en kana, ou demander la lecture reviendrait a
+  recopier ce qui est affiche.
+- **Les 150 mots les plus frequents sont traduits a la main.** Ils couvrent 62 % de
+  toutes les occurrences, et ce sont les particules : « indicates sentence topic »
+  n'apprend rien a un francophone, « marque le theme de la phrase » si. Le reste vient
+  de JMdict. Au total 73 % des occurrences ont un sens francais, 99 % en ont un.
+- **La lecture vient du corpus, par vote majoritaire**, pas des marqueurs de priorite de
+  JMdict. 人 se lit ひと 3 068 fois contre じん 17 : interroger JMdict sur le seul kanji
+  donnait « -ian, comme dans Italian ». Interroger sur le couple mot + lecture leve
+  l'ambiguite.
+- Le texte a trous **affiche le sens du mot masque** une fois corrige. La boucle
+  d'apprentissage etait incomplete : on retrouvait un mot sans jamais savoir ce qu'il
+  voulait dire.
+- **Correction du compteur de budget d'ecriture**, qui annoncait 0 ligne pour une
+  migration de 2 509 mises a jour. Il ne comptait que les lignes ajoutees. Corrige, puis
+  corrige a nouveau : `getRowsModified` ne rend que le compte de la derniere instruction,
+  et SQLite le laisse inchange apres un `CREATE TABLE`, ce qui faisait recompter la
+  precedente. Les deux pieges ont leur test.
+- 55 tests (dix de plus), dont la qualite du vocabulaire : les 150 premiers doivent
+  tous etre en francais, は doit parler de theme, 人 doit se lire ひと.
+
 ## 0.10.0 — 2 septembre 2026
 
 - **Ce que tu peux lire.** L'ecran de statistiques ouvre desormais sur le nombre de

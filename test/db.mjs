@@ -5,9 +5,9 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import initSqlJs from 'sql.js'
-import { KINDS, NEXT_ITEMS, PENDING } from '../.test-build/shared/sql.js'
+import { NEXT_ITEMS, PENDING, kindsFor } from '../.test-build/shared/sql.js'
 
-export { KINDS, NEXT_ITEMS, PENDING }
+export { NEXT_ITEMS, PENDING, kindsFor }
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const dir = join(root, 'migrations')
@@ -54,7 +54,7 @@ export function materialize(db, want, filter = '', args = []) {
 
   let written = 0
   for (const r of picked) {
-    for (const kind of KINDS[r.script] ?? ['reading']) {
+    for (const kind of kindsFor(r.script, r.text)) {
       db.run(`INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
               VALUES (?,?,?,?,?,?,?)`, [USER, LANG, r.item_type, r.item_id, kind, NOW, NOW])
       written++

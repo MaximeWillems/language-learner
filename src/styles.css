@@ -513,7 +513,7 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 }
 .phrase .gap.filled { border-bottom-color: var(--good); color: var(--good); }
 
-.choice.word {
+.choice.token {
   font-size: 1.15rem;
   font-weight: 500;
   padding: .7rem .8rem;
@@ -529,7 +529,7 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   .card.sentence { padding: var(--s4); }
   .phrase { font-size: 2rem; line-height: 1.8; }
   .phrase .gap { min-width: 4.5rem; }
-  .choice.word { font-size: 1.3rem; }
+  .choice.token { font-size: 1.3rem; }
 }
 
 /* ---------- cartes a probleme ---------- */
@@ -796,4 +796,18 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 
 @media (min-width: 900px) {
   .capacity .big-n { font-size: 5rem; }
+}
+
+/* ---------- cartes de mot ---------- */
+
+.word {
+  font-size: clamp(2.6rem, 11vw, 3.8rem);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: .02em;
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .word { font-size: 4.4rem; }
 }

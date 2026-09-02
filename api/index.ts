@@ -3,7 +3,7 @@ import type { Grade } from 'ts-fsrs'
 import type { CardAction, CardKind, Counts, DeckRequest, QueueCard, Script } from '../shared/types'
 import { LEECH } from '../shared/types'
 import { blankIndex, interleave, pick, spread } from '../shared/queue'
-import { ALMOST, COLS, FROM, KINDS, NEW_CARDS, NEXT_ITEMS, PENDING, READABLE, SELECT } from '../shared/sql'
+import { ALMOST, COLS, FROM, NEW_CARDS, NEXT_ITEMS, PENDING, READABLE, SELECT, SENTENCE_WORDS, WORD_GLOSSES, kindsFor } from '../shared/sql'
 import { VERSION } from '../shared/version'
 import { apply, blank, fromRow, label, previews, type CardRow } from './srs'
 
@@ -48,7 +48,7 @@ async function materialize(db: D1Database, u: string, want: number, filter: stri
 
   const rows = (await db.prepare(NEXT_ITEMS.replace('${FILTER}', filter))
     .bind(u, LANG, ...args, want, want)
-    .all<{ item_type: string; item_id: number; script: string }>()).results
+    .all<{ item_type: string; item_id: number; script: string; text: string }>()).results
 
   if (!rows.length) return
 
@@ -60,7 +60,7 @@ async function materialize(db: D1Database, u: string, want: number, filter: stri
   )
   const stmts = []
   for (const r of rows) {
-    for (const kind of KINDS[r.script] ?? ['reading']) {
+    for (const kind of kindsFor(r.script, r.text)) {
       stmts.push(insert.bind(u, LANG, r.item_type, r.item_id, kind, due, now.toISOString()))
     }
   }
@@ -127,6 +127,7 @@ interface Pools {
   senses: string[]
   glosses: string[]
   words: Map<number, string[]>
+  glossed: Map<number, string[]>
   surfaces: string[]
 }
 
@@ -167,6 +168,7 @@ function toCard(row: Row, p: Pools, now: Date): QueueCard {
     translation: row.translation ?? '',
     words,
     blank,
+    blankGloss: blank >= 0 ? (p.glossed.get(row.item_id)?.[blank] ?? '') : '',
     lapses: row.lapses
   }
 }
@@ -179,12 +181,6 @@ async function buildPools(db: D1Database, rows: Row[]): Promise<Pools> {
       ).bind(LANG).all<Kana>()).results
     : []
 
-  const glosses = rows.some(r => r.kind === 'meaning' && r.script === 'word')
-    ? (await db.prepare(
-        `SELECT gloss FROM word WHERE lang=? AND gloss <> '' ORDER BY RANDOM() LIMIT 60`
-      ).bind(LANG).all<{ gloss: string }>()).results.map(r => r.gloss)
-    : []
-
   const senses = rows.some(r => r.kind === 'meaning' && r.script === 'kanji')
     ? (await db.prepare(
         `SELECT json_extract(meanings, '$[0]') AS m FROM character
@@ -192,26 +188,32 @@ async function buildPools(db: D1Database, rows: Row[]): Promise<Pools> {
       ).bind(LANG).all<{ m: string }>()).results.map(r => r.m).filter(Boolean)
     : []
 
+  const glosses = rows.some(r => r.kind === 'meaning' && r.script === 'word')
+    ? (await db.prepare(WORD_GLOSSES).bind(LANG).all<{ gloss: string }>()).results.map(r => r.gloss)
+    : []
+
   const ids = [...new Set(rows.filter(r => r.script === 'sentence').map(r => r.item_id))]
   const words = new Map<number, string[]>()
+  const glossed = new Map<number, string[]>()
   let surfaces: string[] = []
 
   if (ids.length) {
-    const res = await db.prepare(
-      `SELECT sentence_id, surface FROM sentence_word
-        WHERE sentence_id IN (${ph(ids.length)}) ORDER BY sentence_id, pos`
-    ).bind(...ids).all<{ sentence_id: number; surface: string }>()
+    const res = await db.prepare(SENTENCE_WORDS.replace(':ids', ph(ids.length)))
+      .bind(...ids).all<{ sentence_id: number; surface: string; gloss: string }>()
     for (const r of res.results) {
       const acc = words.get(r.sentence_id) ?? []
       acc.push(r.surface)
       words.set(r.sentence_id, acc)
+      const g = glossed.get(r.sentence_id) ?? []
+      g.push(r.gloss ?? '')
+      glossed.set(r.sentence_id, g)
     }
     surfaces = (await db.prepare(
       `SELECT DISTINCT surface FROM sentence_word ORDER BY RANDOM() LIMIT 150`
     ).all<{ surface: string }>()).results.map(r => r.surface)
   }
 
-  return { kana, senses, glosses, words, surfaces }
+  return { kana, senses, glosses, words, glossed, surfaces }
 }
 
 const api = new Hono<Env>()

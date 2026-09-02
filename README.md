@@ -80,6 +80,21 @@ se juge) et **texte a trous** (un mot est masque, a retrouver parmi quatre).
 Le texte a trous est a choix multiples et non en saisie libre : sans methode de saisie
 japonaise, taper 行った au clavier romaji est impossible.
 
+**Vocabulaire** — 2 499 mots tires des phrases du corpus, classes par frequence reelle
+d'apparition. Deux cartes par mot : le sens, et la lecture — sauf pour les mots ecrits en
+kana seul, ou demander la lecture reviendrait a recopier ce qui est affiche.
+
+Les **150 mots les plus frequents sont traduits a la main** (`content/vocabulaire.mjs`).
+Ils couvrent 62 % de toutes les occurrences, et ce sont les particules et auxiliaires,
+pour lesquels les gloses anglaises de JMdict sont des explications grammaticales
+inutilisables : « indicates sentence topic » n'apprend rien, « marque le theme de la
+phrase » si. Le reste vient de JMdict. Au total **73 % des occurrences ont un sens en
+francais**, 99 % en ont un.
+
+La lecture de chaque mot vient du **corpus, par vote majoritaire**, et non des marqueurs
+de priorite de JMdict : 人 se lit ひと 3 068 fois contre じん 17, ce qu'aucun classement
+generique ne dit.
+
 **Le moteur** — planification par FSRS (`ts-fsrs`), avec l'intervalle de chaque note
 affiche avant de choisir. Plafond de 20 nouvelles cartes par jour, revisions et
 nouveautes melangees. Chaque reponse est journalisee dans `review_log` : c'est cette
@@ -157,6 +172,13 @@ regenerer `migrations/0004_seed_kanji.sql`, telecharger
 node scripts/import-kanji.mjs chemin/vers/kanjidic2.xml
 ```
 
+Le vocabulaire vient de **JMdict** (`http://ftp.edrdg.org/pub/Nihongo/JMdict.gz`, 21 Mo),
+croise avec les lectures du corpus Tanaka :
+
+```
+node scripts/import-vocab.mjs chemin/vers/le/dossier
+```
+
 Les phrases croisent deux sources : Tatoeba pour les textes et les traductions
 francaises, le corpus Tanaka pour le decoupage en mots. Ce dernier evite d'embarquer
 un analyseur morphologique, dont le dictionnaire pese 15 Mo et ne tiendrait pas dans
@@ -190,7 +212,7 @@ refonte. **A incrementer dans le meme commit que le changement**, avec une entre
 
 Trois sources, **toutes avec mention obligatoire**, affichee en bas de l'accueil :
 
-- **KANJIDIC2** et le **corpus Tanaka** — Electronic Dictionary Research and
+- **KANJIDIC2**, **JMdict** et le **corpus Tanaka** — Electronic Dictionary Research and
   Development Group, CC BY-SA
 - **Tatoeba** — CC BY 2.0 FR
 
@@ -242,7 +264,13 @@ en consomment beaucoup :
   par element selectionne. Corrige en 0.9.1 — les cartes naissent a l'introduction.
 
 `npm run budget` chiffre chaque migration et echoue si recreer la base de zero
-depasserait le quota. Aujourd'hui : 53 039 lignes, soit 53 % d'une journee.
+depasserait le quota. Aujourd'hui : 55 554 lignes, soit 56 % d'une journee.
+
+Le compteur s'est trompe deux fois avant d'etre juste, et les deux pieges valent d'etre
+connus : compter la difference de `COUNT(*)` rate les migrations qui ne font que des
+`UPDATE` — justement celles qu'on veut voir venir — et `getRowsModified` ne rend que le
+compte de la derniere instruction, que SQLite laisse inchange apres un `CREATE TABLE`.
+Les deux cas ont leur test.
 
 En pratique : ne pas lancer un gros import le meme jour qu'une grosse session de mise au
 point, et passer toute nouvelle migration au compteur avant de la pousser.

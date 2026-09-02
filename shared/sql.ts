@@ -54,19 +54,24 @@ export const PENDING = `
  */
 export const NEXT_ITEMS = `
     SELECT * FROM (
-      SELECT ct.item_type, ct.item_id, ct.script,
+      SELECT ct.item_type, ct.item_id, ct.script, ct.text,
              ROW_NUMBER() OVER (PARTITION BY ct.script ORDER BY ct.ord) AS rn
         ${PENDING}\${FILTER}
     )
      WHERE rn <= ? ORDER BY rn, script LIMIT ?`
 
-/** Deux cartes par element, adaptees a sa nature. */
-export const KINDS: Record<string, string[]> = {
-  hiragana: ['reading', 'recall'],
-  katakana: ['reading', 'recall'],
-  kanji: ['meaning', 'reading'],
-  sentence: ['meaning', 'cloze'],
-  word: ['meaning', 'reading']
+const KANJI_IN = /[一-龯]/
+
+/**
+ * Les cartes a creer pour un element. Deux dans la plupart des cas, une seule pour un
+ * mot ecrit uniquement en kana : lui demander sa lecture reviendrait a recopier ce qui
+ * est deja affiche.
+ */
+export function kindsFor(script: string, text: string): string[] {
+  if (script === 'word') return KANJI_IN.test(text) ? ['meaning', 'reading'] : ['meaning']
+  if (script === 'kanji') return ['meaning', 'reading']
+  if (script === 'sentence') return ['meaning', 'cloze']
+  return ['reading', 'recall']
 }
 
 /**
@@ -108,3 +113,16 @@ export const ALMOST = `
      GROUP BY sw.sentence_id
     HAVING COUNT(DISTINCT wc.character_id) = 1
   )`
+
+/** Les sens des mots, pour fabriquer les mauvaises reponses. Attend : langue. */
+export const WORD_GLOSSES = `
+  SELECT gloss FROM word
+   WHERE lang = ? AND gloss <> '' ORDER BY RANDOM() LIMIT 80`
+
+/** Les mots d'une phrase, avec leur sens, pour eclairer le mot masque. */
+export const SENTENCE_WORDS = `
+  SELECT sw.sentence_id, sw.pos, sw.surface, w.gloss
+    FROM sentence_word sw
+    JOIN word w ON w.id = sw.word_id
+   WHERE sw.sentence_id IN (:ids)
+   ORDER BY sw.sentence_id, sw.pos`

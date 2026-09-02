@@ -3,6 +3,7 @@ import type { Counts, PracticeRequest, Script } from '../shared/types'
 const TRACKS: { key: string; label: string; action: string; scripts: Script[] }[] = [
   { key: 'chars', label: 'Caractères', action: 'Réviser les caractères', scripts: ['hiragana', 'katakana', 'kanji'] },
   { key: 'words', label: 'Mots', action: 'Réviser les mots', scripts: ['word'] },
+  { key: 'words', label: 'Vocabulaire', action: 'Réviser le vocabulaire', scripts: ['word'] },
   { key: 'sentences', label: 'Phrases', action: 'Réviser les phrases', scripts: ['sentence'] }
 ]
 

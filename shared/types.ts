@@ -21,6 +21,8 @@ export interface QueueCard {
   translation: string
   words: string[]
   blank: number
+  /** Sens du mot masque, revele avec la reponse. */
+  blankGloss: string
   lapses: number
 }
 
