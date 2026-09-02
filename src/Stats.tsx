@@ -36,6 +36,23 @@ export default function Stats() {
 
   return (
     <>
+      <section className="panel capacity">
+        <h2>Ce que tu peux lire</h2>
+        <p className="big-n mono">{data.readable.toLocaleString('fr-FR')}</p>
+        <p className="hint">
+          phrases du corpus dont tu connais <strong>tous les kanji</strong>, sur{' '}
+          {data.corpus.toLocaleString('fr-FR')}.
+          {data.almost > 0 && (
+            <> Et <strong>{data.almost.toLocaleString('fr-FR')}</strong> autres ne te manquent
+            que d’un seul kanji.</>
+          )}
+        </p>
+        <p className="hint">
+          C’est la seule mesure qui dit ce dont tu es capable, et pas seulement ce que tu as
+          parcouru : elle monte quand tu apprends, et elle redescend quand tu oublies.
+        </p>
+      </section>
+
       <section className="panel">
         <h2>Où tu en es</h2>
         <div className="track">

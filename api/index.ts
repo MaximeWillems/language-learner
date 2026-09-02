@@ -3,7 +3,7 @@ import type { Grade } from 'ts-fsrs'
 import type { CardAction, CardKind, Counts, DeckRequest, QueueCard, Script } from '../shared/types'
 import { LEECH } from '../shared/types'
 import { blankIndex, interleave, pick, spread } from '../shared/queue'
-import { COLS, FROM, KINDS, NEW_CARDS, NEXT_ITEMS, PENDING, SELECT } from '../shared/sql'
+import { ALMOST, COLS, FROM, KINDS, NEW_CARDS, NEXT_ITEMS, PENDING, READABLE, SELECT } from '../shared/sql'
 import { VERSION } from '../shared/version'
 import { apply, blank, fromRow, label, previews, type CardRow } from './srs'
 
@@ -418,7 +418,10 @@ api.get('/stats', async c => {
       `SELECT DISTINCT date(l.reviewed_at) AS day
          FROM review_log l JOIN card c ON c.id = l.card_id
         WHERE c.user_id=? ORDER BY day DESC LIMIT 400`
-    ).bind(u)
+    ).bind(u),
+    c.env.DB.prepare(READABLE).bind(LANG, u),
+    c.env.DB.prepare(ALMOST).bind(LANG, u),
+    c.env.DB.prepare(`SELECT COUNT(*) AS n FROM sentence WHERE lang = ?`).bind(LANG)
   ])
 
   const states = new Map<number, number>()
@@ -446,7 +449,10 @@ api.get('/stats', async c => {
     right: total?.ok ?? 0,
     streak,
     past: res[1].results,
-    ahead: res[2].results
+    ahead: res[2].results,
+    readable: (res[5].results[0] as { n: number } | undefined)?.n ?? 0,
+    almost: (res[6].results[0] as { n: number } | undefined)?.n ?? 0,
+    corpus: (res[7].results[0] as { n: number } | undefined)?.n ?? 0
   })
 })
 

@@ -68,3 +68,43 @@ export const KINDS: Record<string, string[]> = {
   sentence: ['meaning', 'cloze'],
   word: ['meaning', 'reading']
 }
+
+/**
+ * Les kanji qu'on maitrise : au moins une carte arrivee en revision (etat 2 de FSRS),
+ * ni mise de cote ni encore en apprentissage. Attend un parametre : l'utilisateur.
+ */
+export const KNOWN_KANJI = `
+        SELECT item_id FROM card
+         WHERE user_id = ? AND item_type = 'character' AND state = 2 AND suspended = 0`
+
+/**
+ * Les phrases dont on connait tous les kanji. Mesure de capacite plutot que de volume :
+ * elle monte quand on apprend et redescend quand on oublie, ce qui la rend credible.
+ * Attend : langue, utilisateur.
+ */
+export const READABLE = `
+  SELECT COUNT(*) AS n FROM sentence s
+   WHERE s.lang = ?
+     AND NOT EXISTS (
+       SELECT 1
+         FROM sentence_word sw
+         JOIN word_character wc ON wc.word_id = sw.word_id
+        WHERE sw.sentence_id = s.id
+          AND wc.character_id NOT IN (${KNOWN_KANJI})
+     )`
+
+/**
+ * Les phrases auxquelles il ne manque qu'un seul kanji : ce qui est a portee de main.
+ * Attend : utilisateur, langue.
+ */
+export const ALMOST = `
+  SELECT COUNT(*) AS n FROM (
+    SELECT sw.sentence_id
+      FROM sentence_word sw
+      JOIN word_character wc ON wc.word_id = sw.word_id
+      JOIN sentence s ON s.id = sw.sentence_id
+     WHERE s.lang = ?
+       AND wc.character_id NOT IN (${KNOWN_KANJI})
+     GROUP BY sw.sentence_id
+    HAVING COUNT(DISTINCT wc.character_id) = 1
+  )`

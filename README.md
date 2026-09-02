@@ -100,8 +100,11 @@ absente est ignoree sans casser l'import.
 Chaque famille de contenu a le sien, parce qu'on veut rarement travailler les kanji et
 les phrases dans le meme mouvement.
 
-**Statistiques** — repartition des cartes, taux de reussite, serie de jours, revisions
-des quatorze derniers jours, et **charge planifiee des quatorze prochains**. Ce dernier
+**Statistiques** — en tete, **le nombre de phrases du corpus dont on connait tous les
+kanji**, et celles auxquelles il ne manque qu'un kanji. Mesure de capacite plutot que de
+volume : elle redescend quand on oublie. Puis la repartition des cartes, le taux de
+reussite, la serie de jours, les revisions des quatorze derniers jours, et la **charge
+planifiee des quatorze prochains**. Ce dernier
 graphique est celui qui sert : un pic annonce une journee lourde, donc le moment de
 baisser le plafond de nouveautes avant de la subir.
 

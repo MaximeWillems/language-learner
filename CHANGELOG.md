@@ -4,6 +4,19 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.10.0 — 2 septembre 2026
+
+- **Ce que tu peux lire.** L'ecran de statistiques ouvre desormais sur le nombre de
+  phrases du corpus dont tu connais tous les kanji, et sur celles auxquelles il ne
+  manque qu'un seul kanji. C'est une mesure de capacite et non de volume : elle monte
+  quand on apprend et **redescend quand on oublie**, ce qui la rend credible la ou une
+  barre de progression de cours ment.
+- Elle ne demande aucune ecriture en base : parfaitement compatible avec le plafond
+  quotidien de D1.
+- La courbe est lente au debut — c'est la langue qui veut ca — mais elle decolle vite :
+  200 kanji donnent 297 phrases, 500 en donnent 1 161, 800 en donnent 1 820. Chaque
+  nouveau kanji en debloque plusieurs.
+
 ## 0.9.2 — 2 septembre 2026
 
 Rien de visible : cette version outille le projet plutot que l'application.

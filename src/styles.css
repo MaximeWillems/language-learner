@@ -782,3 +782,18 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   .prose p { font-size: 1.02rem; }
   .lessonhead h2 { font-size: 1.6rem; }
 }
+
+/* ---------- mesure de capacite ---------- */
+
+.capacity .big-n {
+  margin: 0;
+  font-size: clamp(3rem, 14vw, 4.5rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ai);
+}
+.capacity .hint strong { color: var(--ink); font-weight: 600; }
+
+@media (min-width: 900px) {
+  .capacity .big-n { font-size: 5rem; }
+}

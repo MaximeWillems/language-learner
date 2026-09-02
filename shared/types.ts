@@ -123,6 +123,11 @@ export interface Stats {
   streak: number
   past: DayCount[]
   ahead: DayCount[]
+  /** Phrases dont tous les kanji sont acquis. */
+  readable: number
+  /** Phrases auxquelles il ne manque qu'un seul kanji. */
+  almost: number
+  corpus: number
 }
 
 export interface LessonBrief {

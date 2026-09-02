@@ -149,3 +149,44 @@ test('les statistiques ne comptent que les vraies revisions', async () => {
      WHERE c.user_id = ? AND l.mode = 'review'`, [USER])
   assert.deepEqual(stats, { n: 2, ok: 1 })
 })
+
+test('la mesure de capacite reflete ce qu on sait vraiment', async () => {
+  const { ALMOST, READABLE } = await import('../.test-build/shared/sql.js')
+  const db = await freshDb()
+  const known = n => {
+    for (const k of rows(db, `SELECT id FROM character WHERE kind='kanji' ORDER BY ord LIMIT ${n}`)) {
+      db.run(`INSERT OR IGNORE INTO card (user_id,lang,item_type,item_id,kind,due,created_at,state)
+              VALUES (?,?,'character',?,'meaning',?,?,2)`, [USER, LANG, k.id, NOW, NOW])
+    }
+    return one(db, READABLE, [LANG, USER]).n
+  }
+
+  const none = one(db, READABLE, [LANG, USER]).n
+  assert.ok(none < 10, 'sans kanji, presque rien n est lisible')
+
+  const at200 = known(200)
+  const at500 = known(500)
+  assert.ok(at200 > none && at500 > at200, `la mesure doit monter : ${none} -> ${at200} -> ${at500}`)
+
+  // les kanji sont classes par frequence : les 300 suivants doivent rapporter gros
+  assert.ok(at500 - at200 > 500, `seulement ${at500 - at200} phrases gagnees entre 200 et 500 kanji`)
+
+  const almost = one(db, ALMOST, [LANG, USER]).n
+  assert.ok(almost > 0, 'des phrases doivent etre a un kanji pres')
+
+  // oublier fait redescendre la mesure : c est ce qui la rend credible
+  db.run("UPDATE card SET state = 1 WHERE item_type = 'character'")
+  assert.equal(one(db, READABLE, [LANG, USER]).n, none)
+})
+
+test('une carte mise de cote ne compte pas comme acquise', async () => {
+  const { READABLE } = await import('../.test-build/shared/sql.js')
+  const db = await freshDb()
+  for (const k of rows(db, "SELECT id FROM character WHERE kind='kanji' ORDER BY ord LIMIT 400")) {
+    db.run(`INSERT OR IGNORE INTO card (user_id,lang,item_type,item_id,kind,due,created_at,state)
+            VALUES (?,?,'character',?,'meaning',?,?,2)`, [USER, LANG, k.id, NOW, NOW])
+  }
+  const before = one(db, READABLE, [LANG, USER]).n
+  db.run("UPDATE card SET suspended = 1 WHERE item_type = 'character'")
+  assert.ok(one(db, READABLE, [LANG, USER]).n < before)
+})
