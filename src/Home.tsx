@@ -2,6 +2,7 @@ import type { Counts, PracticeRequest, Script } from '../shared/types'
 
 const TRACKS: { key: string; label: string; action: string; scripts: Script[] }[] = [
   { key: 'chars', label: 'Caractères', action: 'Réviser les caractères', scripts: ['hiragana', 'katakana', 'kanji'] },
+  { key: 'words', label: 'Mots', action: 'Réviser les mots', scripts: ['word'] },
   { key: 'sentences', label: 'Phrases', action: 'Réviser les phrases', scripts: ['sentence'] }
 ]
 
@@ -16,8 +17,8 @@ export default function Home({ counts, onStart }: {
       <section className="panel">
         <h2>Rien dans ton paquet</h2>
         <p className="hint">
-          Choisis ce que tu veux apprendre dans l’onglet <strong>Caractères</strong> ou
-          <strong> Phrases</strong>, puis reviens ici.
+          Commence par le <strong>Parcours</strong> si tu débutes, ou charge directement
+          des caractères et des phrases depuis leurs onglets.
         </p>
       </section>
     )

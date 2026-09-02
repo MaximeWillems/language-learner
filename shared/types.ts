@@ -1,6 +1,6 @@
 export type CardKind = 'reading' | 'recall' | 'meaning' | 'cloze'
 /** Famille de contenu. 'sentence' n'est pas une ecriture, mais se selectionne pareil. */
-export type Script = 'hiragana' | 'katakana' | 'kanji' | 'sentence'
+export type Script = 'hiragana' | 'katakana' | 'kanji' | 'word' | 'sentence'
 export type Rating = 1 | 2 | 3 | 4
 
 export interface QueueCard {
@@ -117,4 +117,42 @@ export interface Stats {
   streak: number
   past: DayCount[]
   ahead: DayCount[]
+}
+
+export interface LessonBrief {
+  id: number
+  pos: number
+  title: string
+  state: string | null
+  items: number
+  owned: number
+  known: number
+}
+
+export interface Chapter {
+  id: number
+  pos: number
+  title: string
+  summary: string
+  unlocks: string
+  lessons: LessonBrief[]
+}
+
+export interface LessonItem {
+  role: 'word' | 'example'
+  type: 'word' | 'sentence'
+  id: number
+  text: string
+  reading: string
+  gloss: string
+  owned: boolean
+}
+
+export interface Lesson {
+  id: number
+  title: string
+  chapter: string
+  body: string
+  state: string | null
+  items: LessonItem[]
 }

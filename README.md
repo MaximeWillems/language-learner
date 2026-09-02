@@ -57,7 +57,8 @@ shared/       types et comparaison des réponses, utilisés des deux côtés
 src/          l'interface React : App (navigation), Home, Deck, Stats,
               Settings, Review
 migrations/   le schéma SQL et les kana
-scripts/      generation des donnees : kana (migration 0002), kanji (migration 0004)
+content/      le cours ecrit a la main (course.mjs)
+scripts/      generation des donnees : kana, kanji, phrases, cours
 ```
 
 ## Ce qui marche
@@ -81,6 +82,17 @@ japonaise, taper 行った au clavier romaji est impossible.
 affiche avant de choisir. Plafond de 20 nouvelles cartes par jour, revisions et
 nouveautes melangees. Chaque reponse est journalisee dans `review_log` : c'est cette
 table qui permettra plus tard de reentrainer les parametres sur ton propre historique.
+
+**Le parcours** — un cours guide en chapitres. Le cours decide de ce qu'on apprend
+ensuite, la repetition espacee decide de quand on le revoit : terminer une lecon ne fait
+que creer des cartes ordinaires. **Aucun chapitre n'est verrouille**, et les cartes sont
+proposees case a cocher, jamais ajoutees d'office. Chaque lecon affiche combien de ses
+elements sont deja au paquet, ce qui remplace un test de placement.
+
+Le cours vit dans `content/course.mjs` et se regenere avec
+`node scripts/import-course.mjs`. Les mots y portent leur traduction ; les exemples sont
+designes par leur texte japonais et resolus contre le corpus a la migration — une phrase
+absente est ignoree sans casser l'import.
 
 **Navigation** — cinq ecrans : Reviser, Caracteres, Phrases, Statistiques, Reglages.
 Chaque famille de contenu a le sien, parce qu'on veut rarement travailler les kanji et

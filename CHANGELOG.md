@@ -4,6 +4,26 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.9.0 — 22 aout 2026
+
+- **Le parcours guide**, en prototype : deux chapitres, cinq lecons ecrites a la main.
+  « Les kana » pose les trois ecritures, « La phrase minimale » couvre です, la question
+  en か, la particule の, et la difference entre は et が.
+- **Rien n'est verrouille.** Tous les chapitres sont ouverts, dans n'importe quel ordre.
+  L'ordre affiche suit la grammaire parce qu'elle est reellement sequentielle, pas pour
+  contraindre.
+- **Les cartes sont proposees, jamais ajoutees d'office.** En fin de lecon, chaque mot et
+  chaque exemple porte une case a cocher, pre-cochee seulement s'il n'est pas deja au
+  paquet. Un bouton « je connais deja tout ca » marque la lecon sans rien ajouter.
+- **La couverture est visible avant d'ouvrir** : chaque lecon affiche combien de ses
+  elements sont deja au paquet et combien sont acquis. Elle se calcule sur les elements,
+  donc une phrase partagee entre deux lecons compte pour les deux.
+- **Les mots deviennent une famille de cartes** a part entiere, avec leur propre parcours
+  de revision. Leur traduction vient de la lecon qui les enseigne — inutile d'importer un
+  dictionnaire entier pour quelques centaines de mots.
+- Les exemples ne sont pas ecrits mais **selectionnes dans le corpus** et resolus par leur
+  texte au moment de la migration : les 14 exemples des cinq lecons en viennent tous.
+
 ## 0.8.0 — 22 aout 2026
 
 - **Navigation par onglets** : Reviser, Caracteres, Phrases, Statistiques, Reglages.

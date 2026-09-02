@@ -129,6 +129,7 @@ function interleave(due: Row[], fresh: Row[]): Row[] {
 interface Pools {
   kana: Kana[]
   senses: string[]
+  glosses: string[]
   words: Map<number, string[]>
   surfaces: string[]
 }
@@ -168,7 +169,8 @@ function toCard(row: Row, p: Pools, now: Date): QueueCard {
     const others = p.kana.filter(k => k.kind === row.script && k.reading !== row.reading)
     choices.push(row.text, ...pick(others, 3, k => k.glyph === row.text).map(k => k.glyph))
   } else if (row.kind === 'meaning' && meanings.length) {
-    choices.push(meanings[0], ...pick(p.senses, 3, v => meanings.includes(v)))
+    const pool = row.script === 'word' ? p.glosses : p.senses
+    choices.push(meanings[0], ...pick(pool, 3, v => meanings.includes(v)))
   } else if (row.kind === 'cloze' && words.length) {
     blank = blankIndex(row.id, words)
     const answer = words[blank]
@@ -206,6 +208,12 @@ async function buildPools(db: D1Database, rows: Row[]): Promise<Pools> {
       ).bind(LANG).all<Kana>()).results
     : []
 
+  const glosses = rows.some(r => r.kind === 'meaning' && r.script === 'word')
+    ? (await db.prepare(
+        `SELECT gloss FROM word WHERE lang=? AND gloss <> '' ORDER BY RANDOM() LIMIT 60`
+      ).bind(LANG).all<{ gloss: string }>()).results.map(r => r.gloss)
+    : []
+
   const senses = rows.some(r => r.kind === 'meaning' && r.script === 'kanji')
     ? (await db.prepare(
         `SELECT json_extract(meanings, '$[0]') AS m FROM character
@@ -232,7 +240,7 @@ async function buildPools(db: D1Database, rows: Row[]): Promise<Pools> {
     ).all<{ surface: string }>()).results.map(r => r.surface)
   }
 
-  return { kana, senses, words, surfaces }
+  return { kana, senses, glosses, words, surfaces }
 }
 
 const api = new Hono<Env>()
@@ -502,6 +510,136 @@ api.get('/stats', async c => {
     past: res[1].results,
     ahead: res[2].results
   })
+})
+
+// --- le parcours guide ---
+
+const LESSON_COVER = `
+  SELECT li.lesson_id AS lesson_id,
+         COUNT(DISTINCT li.item_type || ':' || li.item_id) AS items,
+         COUNT(DISTINCT CASE WHEN c.id IS NOT NULL THEN li.item_type || ':' || li.item_id END) AS owned,
+         COUNT(DISTINCT CASE WHEN c.state = 2 THEN li.item_type || ':' || li.item_id END) AS known
+    FROM lesson_item li
+    LEFT JOIN card c
+      ON c.item_type = li.item_type AND c.item_id = li.item_id
+     AND c.user_id = ? AND c.suspended = 0
+   GROUP BY li.lesson_id`
+
+api.get('/course', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+
+  const res = await c.env.DB.batch([
+    c.env.DB.prepare(`SELECT id, pos, title, summary, unlocks FROM milestone WHERE lang=? ORDER BY pos`).bind(LANG),
+    c.env.DB.prepare(`SELECT id, milestone_id, pos, title FROM lesson ORDER BY milestone_id, pos`),
+    c.env.DB.prepare(LESSON_COVER).bind(u),
+    c.env.DB.prepare(`SELECT lesson_id, state FROM lesson_progress WHERE user_id=?`).bind(u)
+  ])
+
+  const cover = new Map<number, { items: number; owned: number; known: number }>()
+  for (const r of res[2].results as { lesson_id: number; items: number; owned: number; known: number }[]) {
+    cover.set(r.lesson_id, { items: r.items, owned: r.owned, known: r.known })
+  }
+  const done = new Map<number, string>()
+  for (const r of res[3].results as { lesson_id: number; state: string }[]) done.set(r.lesson_id, r.state)
+
+  const lessons = res[1].results as { id: number; milestone_id: number; pos: number; title: string }[]
+
+  return c.json((res[0].results as { id: number; pos: number; title: string; summary: string; unlocks: string }[])
+    .map(m => ({
+      id: m.id,
+      pos: m.pos,
+      title: m.title,
+      summary: m.summary,
+      unlocks: m.unlocks,
+      lessons: lessons.filter(l => l.milestone_id === m.id).map(l => ({
+        id: l.id,
+        pos: l.pos,
+        title: l.title,
+        state: done.get(l.id) ?? null,
+        ...(cover.get(l.id) ?? { items: 0, owned: 0, known: 0 })
+      }))
+    })))
+})
+
+api.get('/lesson/:id', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const id = Number(c.req.param('id'))
+
+  const lesson = await c.env.DB.prepare(
+    `SELECT l.id, l.title, l.body, m.title AS chapter FROM lesson l
+       JOIN milestone m ON m.id = l.milestone_id WHERE l.id = ?`
+  ).bind(id).first<{ id: number; title: string; body: string; chapter: string }>()
+  if (!lesson) return c.json({ error: 'leçon introuvable' }, 404)
+
+  const items = await c.env.DB.prepare(
+    `SELECT li.role, li.item_type, li.item_id, li.pos,
+            COALESCE(w.lemma, s.text) AS text,
+            COALESCE(w.reading, '') AS reading,
+            COALESCE(w.gloss, s.translation) AS gloss,
+            EXISTS (SELECT 1 FROM card c
+                     WHERE c.user_id = ? AND c.item_type = li.item_type AND c.item_id = li.item_id) AS owned
+       FROM lesson_item li
+       LEFT JOIN word w ON li.item_type = 'word' AND w.id = li.item_id
+       LEFT JOIN sentence s ON li.item_type = 'sentence' AND s.id = li.item_id
+      WHERE li.lesson_id = ?
+      ORDER BY li.role DESC, li.pos`
+  ).bind(u, id).all<{
+    role: string; item_type: string; item_id: number; pos: number
+    text: string; reading: string; gloss: string; owned: number
+  }>()
+
+  const progress = await c.env.DB.prepare(
+    `SELECT state FROM lesson_progress WHERE user_id=? AND lesson_id=?`
+  ).bind(u, id).first<{ state: string }>()
+
+  return c.json({
+    ...lesson,
+    state: progress?.state ?? null,
+    items: items.results.map(r => ({
+      role: r.role,
+      type: r.item_type,
+      id: r.item_id,
+      text: r.text,
+      reading: r.reading,
+      gloss: r.gloss,
+      owned: r.owned === 1
+    }))
+  })
+})
+
+// Rien n'est ajoute d'office : le client envoie exactement ce que l'utilisateur a coche.
+api.post('/lesson/:id/complete', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const id = Number(c.req.param('id'))
+  const b = await c.req.json<{ words?: number[]; sentences?: number[]; state?: string }>()
+  const now = new Date()
+  const due = blank(now).due.toISOString()
+  const state = b.state === 'known' ? 'known' : 'done'
+
+  const insert = c.env.DB.prepare(
+    `INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  )
+  const stmts = []
+  for (const w of b.words ?? []) {
+    for (const kind of ['meaning', 'reading']) {
+      stmts.push(insert.bind(u, LANG, 'word', w, kind, due, now.toISOString()))
+    }
+  }
+  for (const s of b.sentences ?? []) {
+    for (const kind of ['meaning', 'cloze']) {
+      stmts.push(insert.bind(u, LANG, 'sentence', s, kind, due, now.toISOString()))
+    }
+  }
+  stmts.push(
+    c.env.DB.prepare(
+      `INSERT INTO lesson_progress (user_id, lesson_id, state, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (user_id, lesson_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at`
+    ).bind(u, id, state, now.toISOString())
+  )
+
+  for (let i = 0; i < stmts.length; i += 100) await c.env.DB.batch(stmts.slice(i, i + 100))
+  return c.json(await counts(c.env.DB, u))
 })
 
 // --- cartes a probleme : ratees en boucle, ou mises de cote ---

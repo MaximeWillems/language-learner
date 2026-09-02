@@ -1,6 +1,6 @@
 import type {
   CardAction, CardIssue, Counts, DeckRequest, PracticeRequest,
-  QueueResponse, Rating, Review, ReviewResponse, Stats
+  Chapter, Lesson, QueueResponse, Rating, Review, ReviewResponse, Stats
 } from '../shared/types'
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
@@ -45,3 +45,10 @@ export const cardAction = (id: number, action: CardAction) =>
   post<Counts>(`/api/cards/${id}/action`, { action })
 
 export const getStats = () => call<Stats>('/api/stats')
+
+export const getCourse = () => call<Chapter[]>('/api/course')
+export const getLesson = (id: number) => call<Lesson>(`/api/lesson/${id}`)
+export const completeLesson = (
+  id: number,
+  body: { words: number[]; sentences: number[]; state: 'done' | 'known' }
+) => post<Counts>(`/api/lesson/${id}/complete`, body)

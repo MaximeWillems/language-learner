@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react'
 import type { Counts, PracticeRequest } from '../shared/types'
 import { VERSION } from '../shared/version'
 import { getCounts, getVersion } from './api'
+import Course from './Course'
 import Deck from './Deck'
 import Home from './Home'
 import Review from './Review'
 import Settings from './Settings'
 import Stats from './Stats'
 
-type Tab = 'home' | 'chars' | 'sentences' | 'stats' | 'settings'
+type Tab = 'home' | 'course' | 'chars' | 'sentences' | 'stats' | 'settings'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'home', label: 'Réviser' },
+  { key: 'course', label: 'Parcours' },
   { key: 'chars', label: 'Caractères' },
   { key: 'sentences', label: 'Phrases' },
   { key: 'stats', label: 'Statistiques' },
@@ -84,6 +86,7 @@ export default function App() {
       {error && <p className="error">{error}</p>}
 
       {tab === 'home' && <Home counts={counts} onStart={start} />}
+      {tab === 'course' && <Course setCounts={setCounts} onError={setError} />}
       {tab === 'chars' && (
         <Deck family="chars" counts={counts} setCounts={setCounts} onStart={start} onError={setError} />
       )}

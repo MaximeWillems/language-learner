@@ -18,6 +18,8 @@ const PROMPTS: Record<string, string> = {
   'recall:hiragana': 'Retrouve l’hiragana',
   'recall:katakana': 'Retrouve le katakana',
   'meaning:kanji': 'Que signifie ce kanji ?',
+  'reading:word': 'Comment se lit ce mot ?',
+  'meaning:word': 'Que veut dire ce mot ?',
   'meaning:sentence': 'Que veut dire cette phrase ?',
   'cloze:sentence': 'Complète la phrase'
 }
@@ -40,8 +42,9 @@ const formOf = (c: QueueCard) =>
 
 function isRight(c: QueueCard, answer: string): boolean {
   if (c.kind === 'recall' || c.kind === 'cloze') return answer === answerOf(c)
-  if (c.kind === 'meaning') return c.script === 'kanji' ? answer === answerOf(c) : true
+  if (c.kind === 'meaning') return c.choices.length ? answer === answerOf(c) : true
   if (c.script === 'kanji') return matchesAnyReading(answer, [...c.onReadings, ...c.kunReadings])
+  if (c.script === 'word') return matchesAnyReading(answer, [c.reading])
   return matchesKana(answer, c.text, c.reading)
 }
 
@@ -242,7 +245,7 @@ export default function Review({ mode, filters, onDone }: {
               value={input}
               onChange={e => setInput(e.target.value)}
               readOnly={revealed}
-              placeholder={card.script === 'kanji' ? 'une lecture, en kana ou rōmaji' : 'rōmaji ou kana'}
+              placeholder={card.script === 'hiragana' || card.script === 'katakana' ? 'rōmaji ou kana' : 'en kana ou rōmaji'}
               autoComplete="off"
               autoCapitalize="off"
               spellCheck={false}

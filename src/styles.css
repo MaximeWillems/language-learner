@@ -666,3 +666,119 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   .bars .v { font-size: .7rem; }
   .bars .d { font-size: .66rem; writing-mode: horizontal-tb; }
 }
+
+/* ---------- le parcours ---------- */
+
+.chap { display: flex; align-items: flex-start; gap: var(--s3); }
+.chap .num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ai);
+  font-size: .82rem;
+}
+.chap h2 { margin: 0 0 .15rem; }
+.chap .unlock { font-size: .78rem; }
+
+.lessons { margin: var(--s2) 0 0; padding: 0; list-style: none; }
+.lessons li { border-top: 1px solid var(--line-soft); }
+
+.lesson {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .3rem;
+  width: 100%;
+  padding: var(--s2) 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink);
+  text-align: left;
+}
+.lesson:hover .t { color: var(--ai); }
+.lesson .t { display: flex; align-items: center; gap: .5rem; font-size: .96rem; font-weight: 500; }
+
+.flag {
+  font-family: var(--f-mono);
+  font-size: .62rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: .1em .5em;
+  border-radius: 99px;
+  border: 1px solid currentColor;
+  font-weight: 400;
+}
+.flag.done { color: var(--muted); }
+.flag.known { color: var(--good); }
+
+.cover { display: flex; align-items: center; gap: .5rem; font-size: .74rem; color: var(--muted); }
+.cover.none { color: var(--muted); font-style: italic; }
+.cover.full { color: var(--good); }
+.gauge {
+  display: flex;
+  width: 3.5rem;
+  height: 4px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.gauge .k { background: var(--good); }
+.gauge .o { background: var(--ai); }
+
+/* ---------- une lecon ---------- */
+
+.lessonhead { gap: var(--s1); }
+.lessonhead .link { align-self: flex-start; }
+.lessonhead .who {
+  font-size: .7rem;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lessonhead h2 { font-size: 1.35rem; }
+
+.prose { display: flex; flex-direction: column; gap: var(--s3); }
+.prose p { margin: 0; max-width: 62ch; line-height: 1.75; }
+.prose strong { font-weight: 600; color: var(--ink); }
+
+.vocab, .examples, .pick { margin: 0; padding: 0; list-style: none; }
+.vocab li, .examples li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .3rem .8rem;
+  padding: var(--s2) 0;
+  border-top: 1px solid var(--line-soft);
+}
+.vocab li:first-child, .examples li:first-child { border-top: 0; }
+.vocab .jp { font-size: 1.35rem; }
+.vocab .rd { font-size: .95rem; color: var(--muted); }
+.examples .jp { font-size: 1.2rem; line-height: 1.6; }
+.fr { font-size: .9rem; color: var(--ink-soft); }
+
+.pick li { border-top: 1px solid var(--line-soft); }
+.pick li:first-child { border-top: 0; }
+.pick label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem .7rem;
+  padding: var(--s2) 0;
+  cursor: pointer;
+}
+.pick li.has label { cursor: default; opacity: .55; }
+.pick input { width: 1rem; height: 1rem; accent-color: var(--ai); flex: none; }
+.pick .jp { font-size: 1.1rem; }
+
+.finish { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s2); }
+.finish .primary { flex: 1 1 16rem; }
+
+@media (min-width: 900px) {
+  .prose p { font-size: 1.02rem; }
+  .lessonhead h2 { font-size: 1.6rem; }
+}
