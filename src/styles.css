@@ -1,7 +1,7 @@
 :root {
   --ink: #15171d;
   --ink-soft: #454b58;
-  --muted: #6b7383;
+  --muted: #5c6474;
   --paper: #eef0f4;
   --surface: #fafbfc;
   --surface-2: #e5e8ee;
@@ -29,7 +29,7 @@
   :root {
     --ink: #e6e9ef;
     --ink-soft: #b0b7c4;
-    --muted: #868f9f;
+    --muted: #939cac;
     --paper: #0d0f14;
     --surface: #161921;
     --surface-2: #1f242f;
@@ -50,8 +50,8 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--f-ui);
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 17px;
+  line-height: 1.62;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -88,9 +88,9 @@ body {
 .titleline { display: flex; align-items: baseline; gap: var(--s2); }
 .brand { font-size: 1.5rem; color: var(--ai); letter-spacing: .18em; }
 .head h1 { font-size: 1.5rem; font-weight: 600; margin: 0; letter-spacing: -.01em; }
-.sub { margin: 0; color: var(--muted); font-size: .88rem; }
+.sub { margin: 0; color: var(--muted); font-size: .92rem; }
 
-.hint { margin: 0; color: var(--muted); font-size: .85rem; }
+.hint { margin: 0; color: var(--muted); font-size: .875rem; line-height: 1.65; }
 .hint strong { color: var(--ink-soft); font-weight: 600; }
 
 .error {
@@ -123,7 +123,7 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--ai);
 }
-.today .l { font-size: .85rem; color: var(--muted); }
+.today .l { font-size: .9rem; color: var(--muted); }
 .today .primary { width: 100%; }
 .today .split { margin: 0; font-size: .74rem; color: var(--muted); }
 
@@ -148,7 +148,7 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
 }
-.track .l { font-size: .7rem; color: var(--muted); text-align: center; line-height: 1.35; }
+.track .l { font-size: .74rem; color: var(--muted); text-align: center; line-height: 1.35; }
 
 /* ---------- panneaux ---------- */
 
@@ -260,10 +260,10 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   background: var(--paper);
   border: 1px solid var(--line);
   color: var(--ink-soft);
-  font-size: .84rem;
-  line-height: 1.35;
+  font-size: .875rem;
+  line-height: 1.4;
 }
-.chip small { font-size: .68rem; color: var(--muted); }
+.chip small { font-size: .72rem; color: var(--muted); }
 .chip .jp { font-size: .95rem; color: var(--muted); }
 .chip:not(:disabled):hover { border-color: var(--ai); }
 .chip.on { background: var(--ai-soft); border-color: var(--ai); color: var(--ink); }
@@ -303,7 +303,7 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   gap: var(--s1);
   padding-top: var(--s3);
   border-top: 1px solid var(--line-soft);
-  font-size: .7rem;
+  font-size: .76rem;
   line-height: 1.6;
   color: var(--muted);
 }
@@ -357,7 +357,7 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 }
 .strokes { right: var(--s3); }
 
-.prompt-label { font-size: .76rem; color: var(--muted); }
+.prompt-label { font-size: .8rem; color: var(--muted); letter-spacing: .02em; }
 
 .glyph {
   font-size: clamp(4.5rem, 20vw, 7rem);
@@ -468,4 +468,90 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* ==========================================================
+   Grand ecran : deux colonnes. L'action du jour et la mise en
+   pratique a gauche, le suivi et la configuration a droite.
+   ========================================================== */
+
+@media (min-width: 900px) {
+  .page {
+    max-width: 62rem;
+    display: grid;
+    grid-template-columns: 1.15fr .85fr;
+    gap: var(--s4);
+    align-items: start;
+    padding: var(--s5) var(--s4) var(--s5);
+  }
+
+  .page > .banner,
+  .page > .head,
+  .page > .error,
+  .page > .credits { grid-column: 1 / -1; }
+
+  .brand { font-size: 1.9rem; }
+  .head h1 { font-size: 1.9rem; }
+  .sub { font-size: 1rem; }
+
+  .today { padding: var(--s5) var(--s4); gap: var(--s4); }
+  .today .n { font-size: 4.6rem; }
+  .today .l { font-size: 1rem; }
+  .today .primary { padding: 1rem 1.2rem; font-size: 1.05rem; }
+
+  /* en colonne etroite, le suivi se lit mieux en lignes qu'en trois cases */
+  .track {
+    grid-template-columns: 1fr;
+    padding: var(--s3) var(--s4);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+  .track > div {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s3);
+    padding: var(--s2) 0;
+    border-left: 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .track > div:first-child { border-top: 0; }
+  .track .n { font-size: 1.5rem; order: 2; }
+  .track .l { font-size: .82rem; text-align: left; order: 1; }
+
+  .panel { padding: var(--s4); gap: var(--s3); }
+  .panel h2 { font-size: 1.1rem; }
+  details.manage > summary { padding: var(--s4); font-size: 1.1rem; }
+  details.manage .body { padding: var(--s4); padding-top: var(--s3); gap: var(--s3); }
+
+  .credits { flex-direction: row; justify-content: space-between; gap: var(--s4); }
+
+  /* ---- ecran de revision : une colonne large et centree ---- */
+
+  .page.review {
+    display: flex;
+    max-width: 44rem;
+    gap: var(--s4);
+  }
+  .card { padding: var(--s5) var(--s4); gap: var(--s4); }
+  .glyph { font-size: 9.5rem; }
+  .romaji { font-size: 5rem; }
+  .answer { width: min(100%, 20rem); padding: .75rem 1rem; font-size: 1.35rem; }
+  .choice { padding: 1.15rem .3rem; font-size: 2.4rem; }
+  .choices.text { grid-template-columns: 1fr 1fr; }
+  .choices.text .choice { font-size: 1rem; padding: .85rem 1rem; }
+  .verdict { gap: var(--s2); }
+  .verdict .sens { font-size: 1.15rem; }
+  .verdict .lectures { font-size: .82rem; }
+  .verdict .lectures b { font-size: 1.25rem; }
+  .rating { padding: .7rem .3rem; }
+  .rating .k { font-size: .92rem; }
+  .rating .iv { font-size: .74rem; }
+  .bar .mono { font-size: .82rem; }
+}
+
+@media (min-width: 1400px) {
+  .page { max-width: 68rem; }
+  .today .n { font-size: 5.4rem; }
 }
