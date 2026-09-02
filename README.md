@@ -88,6 +88,13 @@ dit rien de la courbe d'oubli, et laisser FSRS s'en nourrir ferait s'effondrer l
 intervalles. Consequence pour plus tard : seules les lignes `mode = 'review'` doivent
 servir a reentrainer les parametres.
 
+**Introduction des nouveautes** — les nouvelles cartes sont servies **en alternance
+entre ecritures** (`ROW_NUMBER() OVER (PARTITION BY ch.kind ...)`). Un tri global unique
+ne marche pas : les kana portent `ord` 0-103 et les kanji 1000+, donc ajouter des kanji
+ne donnait rien a reviser tant que les 208 kana n'etaient pas epuises — cinq jours
+d'attente a 20 nouvelles par jour. Toute nouvelle famille de contenu (les mots, plus
+tard) doit entrer dans cette rotation.
+
 **Rythme** — le plafond de nouvelles cartes par jour se regle depuis l'accueil
 (defaut 20, stocke dans `setting`). Il ne s'applique qu'aux cartes jamais vues ;
 les revisions dues arrivent toujours en totalite.

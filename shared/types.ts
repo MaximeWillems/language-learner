@@ -19,7 +19,14 @@ export interface QueueCard {
   strokes: number | null
 }
 
+export interface DeckSlice {
+  script: Script
+  kind: CardKind
+  n: number
+}
+
 export interface Counts {
+  deck: DeckSlice[]
   cards: number
   dueNow: number
   newAvailable: number

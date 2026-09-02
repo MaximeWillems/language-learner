@@ -38,14 +38,30 @@ const pick = <T,>(from: T[], n: number, skip: (v: T) => boolean): T[] => {
   return [...out]
 }
 
-const SELECT = `
-  SELECT c.id, c.kind, c.due, c.stability, c.difficulty, c.elapsed_days, c.scheduled_days,
+const COLS = `c.id, c.kind, c.due, c.stability, c.difficulty, c.elapsed_days, c.scheduled_days,
          c.learning_steps, c.reps, c.lapses, c.state, c.last_review,
          ch.glyph, ch.reading, ch.kind AS script, ch.grp,
-         ch.meanings, ch.meaning_lang, ch.on_readings, ch.kun_readings, ch.strokes
+         ch.meanings, ch.meaning_lang, ch.on_readings, ch.kun_readings, ch.strokes`
+
+const FROM = `
     FROM card c
     JOIN character ch ON ch.id = c.item_id
    WHERE c.user_id = ? AND c.lang = ? AND c.suspended = 0 AND c.item_type = 'character'`
+
+const SELECT = `SELECT ${COLS}${FROM}`
+
+// Les nouvelles cartes sont servies en alternance entre ecritures. Sans ca, un tri global
+// unique fait passer les 208 kana (ord 0-103) avant le premier kanji (ord 1000+) : ajouter
+// des kanji ne donne rien a reviser pendant des jours.
+const NEW_CARDS = `
+  SELECT * FROM (
+    SELECT ${COLS},
+           ROW_NUMBER() OVER (PARTITION BY ch.kind ORDER BY ch.ord, c.kind) AS rn
+      ${FROM} AND c.state = 0
+  )
+   WHERE rn <= ?
+   ORDER BY rn, script
+   LIMIT ?`
 
 const ph = (n: number) => Array(n).fill('?').join(',')
 const who = (h: string | undefined) => h ?? 'local'
@@ -71,7 +87,16 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
     db.prepare(`SELECT COUNT(*) n FROM review_log l JOIN card c ON c.id=l.card_id WHERE c.user_id=? AND l.reviewed_at>=?`).bind(u, day)
   ])
   const n = (i: number) => res[i].results[0]?.n ?? 0
+
+  const deck = await db.prepare(
+    `SELECT ch.kind AS script, c.kind AS kind, COUNT(*) AS n
+       FROM card c JOIN character ch ON ch.id = c.item_id
+      WHERE c.user_id = ? AND c.lang = ? AND c.suspended = 0
+      GROUP BY ch.kind, c.kind`
+  ).bind(u, LANG).all<Counts['deck'][number]>()
+
   return {
+    deck: deck.results,
     cards: n(0),
     dueNow: n(1),
     newAvailable: n(2),
@@ -176,7 +201,7 @@ api.get('/queue', async c => {
 
   const room = Math.min(ct.newLeftToday, Math.max(0, limit - reviews.results.length))
   const fresh = room > 0
-    ? (await c.env.DB.prepare(`${SELECT} AND c.state=0 ORDER BY ch.ord, c.kind LIMIT ?`).bind(u, LANG, room).all<Row>()).results
+    ? (await c.env.DB.prepare(NEW_CARDS).bind(u, LANG, room, room).all<Row>()).results
     : []
 
   const queue = interleave(reviews.results, fresh)

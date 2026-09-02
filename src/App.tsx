@@ -86,12 +86,33 @@ export default function App() {
 
   const back = () => { setScreen('home'); refresh() }
 
+  const deck = counts?.deck ?? []
+  const total = (rows: typeof deck) => rows.reduce((a, d) => a + d.n, 0)
+  const ofScript = (k: Script) => total(deck.filter(d => d.script === k))
+  const scoped = drillScripts.length ? deck.filter(d => drillScripts.includes(d.script)) : deck
+  const hasKind = (k: CardKind) => scoped.some(d => d.kind === k && d.n > 0)
+  const drillFilters: PracticeRequest = {
+    scripts: drillScripts,
+    groups: [],
+    kinds: drillKinds.filter(hasKind)
+  }
+  const matching = total(
+    scoped.filter(d => !drillFilters.kinds.length || drillFilters.kinds.includes(d.kind))
+  )
+
+  const summary = (['hiragana', 'katakana', 'kanji'] as Script[])
+    .map(k => ({ k, n: ofScript(k) }))
+    .filter(x => x.n > 0)
+    .map(x => x.n + ' cartes ' + x.k)
+    .join(' · ')
+
   if (screen === 'review') return <Review mode="review" filters={NO_FILTER} onDone={back} />
   if (screen === 'practice') {
-    return <Review mode="practice" filters={{ scripts: drillScripts, groups: [], kinds: drillKinds }} onDone={back} />
+    return <Review mode="practice" filters={drillFilters} onDone={back} />
   }
 
   const pending = counts ? counts.dueNow + Math.min(counts.newAvailable, counts.newLeftToday) : 0
+
 
   return (
     <main className="page">
@@ -125,21 +146,29 @@ export default function App() {
         </p>
 
         <div className="picker">
-          {DRILL_SCRIPTS.map(s => (
-            <button
-              key={s.key}
-              className={drillScripts.includes(s.key) ? 'chip on' : 'chip'}
-              onClick={() => setDrillScripts(flip(drillScripts, s.key) as Script[])}
-            >
-              {s.label}
-            </button>
-          ))}
+          {DRILL_SCRIPTS.map(s => {
+            const n = ofScript(s.key)
+            return (
+              <button
+                key={s.key}
+                className={drillScripts.includes(s.key) ? 'chip on' : 'chip'}
+                disabled={n === 0}
+                title={n === 0 ? 'Aucune carte de ce type dans ton paquet' : undefined}
+                onClick={() => setDrillScripts(flip(drillScripts, s.key) as Script[])}
+              >
+                {s.label}
+                <small>{n === 0 ? 'pas dans le paquet' : n + ' cartes'}</small>
+              </button>
+            )
+          })}
         </div>
         <div className="picker">
           {DRILL_KINDS.map(k => (
             <button
               key={k.key}
               className={drillKinds.includes(k.key) ? 'chip on' : 'chip'}
+              disabled={!hasKind(k.key)}
+              title={!hasKind(k.key) ? 'Ce type d’exercice n’existe pas pour la sélection' : undefined}
               onClick={() => setDrillKinds(flip(drillKinds, k.key) as CardKind[])}
             >
               {k.label}
@@ -147,21 +176,23 @@ export default function App() {
             </button>
           ))}
         </div>
-        <p className="hint">
-          {drillScripts.length === 0 && drillKinds.length === 0
-            ? 'Rien de sélectionné : tout le paquet.'
-            : 'Ne garde que ce qui est sélectionné.'}
-        </p>
-        <button className="secondary" disabled={!counts || counts.cards === 0} onClick={() => setScreen('practice')}>
-          S’entraîner
+
+        <button className="secondary" disabled={matching === 0} onClick={() => setScreen('practice')}>
+          {matching === 0
+            ? 'Aucune carte ne correspond'
+            : 'S’entraîner — ' + matching + (matching > 1 ? ' cartes' : ' carte')}
         </button>
       </section>
 
       <section className="deck">
         <h2>Le paquet</h2>
         <p className="hint">
-          {counts ? counts.cards + ' cartes' : '…'} — deux cartes par caractère.
-          Un kana se lit et se reconnaît ; un kanji se traduit et se lit.
+          {counts
+            ? summary || 'Paquet vide. Choisis ce que tu veux apprendre ci-dessous, puis ajoute-le.'
+            : '…'}
+        </p>
+        <p className="hint">
+          Deux cartes par caractère : un kana se lit et se reconnaît, un kanji se traduit et se lit.
         </p>
 
         <h3>Kana</h3>
