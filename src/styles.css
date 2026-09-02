@@ -555,3 +555,45 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   .page { max-width: 68rem; }
   .today .n { font-size: 5.4rem; }
 }
+
+/* ---------- cartes de phrase ---------- */
+
+.card.sentence { padding: var(--s4) var(--s3); }
+
+.phrase {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 500;
+  line-height: 1.75;
+  text-align: center;
+  letter-spacing: .01em;
+}
+
+.phrase .gap {
+  display: inline-block;
+  min-width: 3.5rem;
+  padding: 0 .15em;
+  color: var(--ai);
+  border-bottom: 2px solid var(--ai);
+  font-weight: 700;
+}
+.phrase .gap.filled { border-bottom-color: var(--good); color: var(--good); }
+
+.choice.word {
+  font-size: 1.15rem;
+  font-weight: 500;
+  padding: .7rem .8rem;
+}
+
+.card.sentence .verdict .sens { font-size: 1.05rem; line-height: 1.55; }
+.card.sentence .verdict .lectures { font-size: 1.1rem; color: var(--ink-soft); }
+
+.ratings.two { grid-template-columns: 1fr 1fr; }
+.ratings.two .rating { padding: .8rem .5rem; }
+
+@media (min-width: 900px) {
+  .card.sentence { padding: var(--s4); }
+  .phrase { font-size: 2rem; line-height: 1.8; }
+  .phrase .gap { min-width: 4.5rem; }
+  .choice.word { font-size: 1.3rem; }
+}

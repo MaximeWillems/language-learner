@@ -4,6 +4,25 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.6.0 — 22 aout 2026
+
+- **Les phrases.** 6 000 phrases reelles traduites en francais, classees en quatre
+  niveaux, avec leur decoupage en mots. Deux cartes chacune : comprendre le sens, et
+  retrouver un mot masque parmi quatre.
+- Le texte a trous est a choix multiples et non en saisie libre : sans methode de
+  saisie japonaise, taper une forme flechie au clavier romaji est impossible.
+- Les phrases entrent dans l'alternance des nouveautes, au meme titre que les kana et
+  les kanji — le piege de la 0.3.1 ne se reproduit pas.
+- Nouvelle forme de carte « retourner et se juger », pour les questions qu'aucune
+  comparaison automatique ne peut trancher.
+- Vue SQL unifiee : la file de revision traite caracteres et phrases par les memes
+  requetes, la ou tout etait ecrit pour les seuls caracteres.
+- **Correction** : la composition du paquet joignait les cartes aux caracteres par un
+  identifiant sans verifier le type. Les 900 cartes de phrase etaient comptees comme
+  des kanji et des kana.
+- 40 363 phrases japonaises ont une traduction francaise sur Tatoeba, pas quelques
+  milliers comme annonce dans l'analyse initiale. Le francais est la langue d'appui.
+
 ## 0.5.1 — 22 aout 2026
 
 - **Correction** : une carte ratee ne revenait jamais dans la seance en cours. La file

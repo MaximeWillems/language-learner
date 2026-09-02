@@ -25,22 +25,32 @@ const KANJI_GROUPS = [
   { key: 'college', label: 'Collège', hint: '1110' }
 ]
 
+const SENTENCE_LEVELS = [
+  { key: 'level1', label: 'Niveau 1', hint: '900 · très simples' },
+  { key: 'level2', label: 'Niveau 2', hint: '1800 · courantes' },
+  { key: 'level3', label: 'Niveau 3', hint: '2100 · plus longues' },
+  { key: 'level4', label: 'Niveau 4', hint: '1200 · kanji avancés' }
+]
+
 const DRILL_SCRIPTS: { key: Script; label: string }[] = [
   { key: 'hiragana', label: 'Hiragana' },
   { key: 'katakana', label: 'Katakana' },
-  { key: 'kanji', label: 'Kanji' }
+  { key: 'kanji', label: 'Kanji' },
+  { key: 'sentence', label: 'Phrases' }
 ]
 
 const DRILL_KINDS: { key: CardKind; label: string; hint: string }[] = [
   { key: 'reading', label: 'Lecture', hint: 'le signe → le son' },
   { key: 'recall', label: 'Reconnaissance', hint: 'le son → le kana' },
-  { key: 'meaning', label: 'Sens', hint: 'le kanji → le français' }
+  { key: 'meaning', label: 'Sens', hint: 'vers le français' },
+  { key: 'cloze', label: 'Texte à trous', hint: 'le mot manquant' }
 ]
 
 const LABELS: Record<string, string> = {
   hiragana: 'hiragana',
   katakana: 'katakana',
-  kanji: 'kanji'
+  kanji: 'kanji',
+  sentence: 'phrases'
 }
 
 const flip = (list: string[], v: string) =>
@@ -53,6 +63,7 @@ export default function App() {
   const [scripts, setScripts] = useState<Script[]>(['hiragana'])
   const [kanaGroups, setKanaGroups] = useState<string[]>(['gojuon'])
   const [kanjiGroups, setKanjiGroups] = useState<string[]>(['grade1'])
+  const [levels, setLevels] = useState<string[]>(['level1'])
   const [drillScripts, setDrillScripts] = useState<Script[]>([])
   const [drillKinds, setDrillKinds] = useState<CardKind[]>([])
   const [cap, setCap] = useState('20')
@@ -108,7 +119,7 @@ export default function App() {
   const matching = total(
     scoped.filter(d => !drillFilters.kinds.length || drillFilters.kinds.includes(d.kind))
   )
-  const summary = (['hiragana', 'katakana', 'kanji'] as Script[])
+  const summary = (['hiragana', 'katakana', 'kanji', 'sentence'] as Script[])
     .map(k => ({ k, n: ofScript(k) }))
     .filter(x => x.n > 0)
     .map(x => x.n + ' ' + LABELS[x.k])
@@ -271,6 +282,31 @@ export default function App() {
             {busy === 'kanji' ? 'Ajout…' : 'Ajouter ces kanji'}
           </button>
 
+          <h3>Phrases</h3>
+          <p className="hint">
+            6 000 phrases réelles avec leur traduction française et leur découpage en mots.
+            Deux cartes chacune : comprendre le sens, et retrouver un mot manquant.
+          </p>
+          <div className="picker">
+            {SENTENCE_LEVELS.map(g => (
+              <button
+                key={g.key}
+                className={levels.includes(g.key) ? 'chip on' : 'chip'}
+                onClick={() => setLevels(flip(levels, g.key))}
+              >
+                {g.label}
+                <small>{g.hint}</small>
+              </button>
+            ))}
+          </div>
+          <button
+            className="secondary"
+            disabled={busy !== '' || !levels.length}
+            onClick={() => create('sentence', { scripts: ['sentence'], groups: levels })}
+          >
+            {busy === 'sentence' ? 'Ajout…' : 'Ajouter ces phrases'}
+          </button>
+
           <h3>Rythme</h3>
           <label className="setting">
             <span>Nouvelles cartes par jour</span>
@@ -294,9 +330,11 @@ export default function App() {
       <footer className="credits">
         <span className="mono">Kotoba {VERSION}</span>
         <span>
-          Données kanji :{' '}
-          <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noreferrer">KANJIDIC2</a>,
-          Electronic Dictionary Research and Development Group, licence CC BY-SA.
+          Kanji et découpage des phrases :{' '}
+          <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noreferrer">KANJIDIC2</a>
+          {' '}et corpus Tanaka, Electronic Dictionary Research and Development Group, CC BY-SA.
+          Phrases et traductions :{' '}
+          <a href="https://tatoeba.org" target="_blank" rel="noreferrer">Tatoeba</a>, CC BY 2.0 FR.
         </span>
       </footer>
     </main>

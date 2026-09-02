@@ -16,29 +16,39 @@ const PROMPTS: Record<string, string> = {
   'reading:kanji': 'Donne une lecture de ce kanji',
   'recall:hiragana': 'Retrouve l’hiragana',
   'recall:katakana': 'Retrouve le katakana',
-  'meaning:kanji': 'Que signifie ce kanji ?'
+  'meaning:kanji': 'Que signifie ce kanji ?',
+  'meaning:sentence': 'Que veut dire cette phrase ?',
+  'cloze:sentence': 'Complète la phrase'
 }
-
-const answerOf = (c: QueueCard) => (c.kind === 'meaning' ? c.meanings[0] ?? '' : c.glyph)
-
-function isRight(c: QueueCard, answer: string): boolean {
-  if (c.kind === 'meaning' || c.kind === 'recall') return answer === answerOf(c)
-  if (c.script === 'kanji') return matchesAnyReading(answer, [...c.onReadings, ...c.kunReadings])
-  return matchesKana(answer, c.glyph, c.reading)
-}
-
-const BATCH = 30
 
 // Une carte replanifiee a moins de 20 min appartient encore a cette seance : FSRS fait
-// repasser les cartes neuves et ratees par des paliers en minutes. Sans reinsertion,
-// « revoir dans 1 min » ne se produisait jamais avant la seance suivante.
+// repasser les cartes neuves et ratees par des paliers en minutes.
+const BATCH = 30
 const HORIZON = 20 * 60 * 1000
 const GAP = 4
 const MAX_REPEATS = 4
 
-type Props = { mode: 'review' | 'practice'; filters: PracticeRequest; onDone: () => void }
+const answerOf = (c: QueueCard) =>
+  c.kind === 'meaning' ? c.meanings[0] ?? ''
+  : c.kind === 'cloze' ? c.words[c.blank] ?? ''
+  : c.text
 
-export default function Review({ mode, filters, onDone }: Props) {
+/** Trois formes : on tape, on choisit, ou on se juge apres avoir retourne la carte. */
+const formOf = (c: QueueCard) =>
+  c.kind === 'reading' ? 'typed' : c.choices.length ? 'choice' : 'reveal'
+
+function isRight(c: QueueCard, answer: string): boolean {
+  if (c.kind === 'recall' || c.kind === 'cloze') return answer === answerOf(c)
+  if (c.kind === 'meaning') return c.script === 'kanji' ? answer === answerOf(c) : true
+  if (c.script === 'kanji') return matchesAnyReading(answer, [...c.onReadings, ...c.kunReadings])
+  return matchesKana(answer, c.text, c.reading)
+}
+
+export default function Review({ mode, filters, onDone }: {
+  mode: 'review' | 'practice'
+  filters: PracticeRequest
+  onDone: () => void
+}) {
   const practice = mode === 'practice'
   const [cards, setCards] = useState<QueueCard[] | null>(null)
   const [i, setI] = useState(0)
@@ -59,31 +69,19 @@ export default function Review({ mode, filters, onDone }: Props) {
   }, [])
 
   const card = cards?.[i]
-  const typed = card?.kind === 'reading'
+  const form = card ? formOf(card) : 'reveal'
 
   useEffect(() => {
-    if (card && !revealed && typed) box.current?.focus()
-  }, [card, revealed, typed])
+    if (card && !revealed && form === 'typed') box.current?.focus()
+  }, [card, revealed, form])
 
   const reveal = (answer: string) => {
-    if (!card || revealed || !answer.trim()) return
-    const ok = isRight(card, answer)
+    if (!card || revealed) return
+    if (form !== 'reveal' && !answer.trim()) return
+    const ok = form === 'reveal' ? true : isRight(card, answer)
     setCorrect(ok)
     setRevealed(true)
-    setScore(s => ({ ok: s.ok + (ok ? 1 : 0), ko: s.ko + (ok ? 0 : 1) }))
-  }
-
-  const advance = async () => {
-    setInput('')
-    setRevealed(false)
-    setSeen(seen + 1)
-    if (practice && cards && i + 1 >= cards.length) {
-      const r = await fetchBatch()
-      setCards(r.cards)
-      setI(0)
-      return
-    }
-    setI(i + 1)
+    if (form !== 'reveal') setScore(s => ({ ok: s.ok + (ok ? 1 : 0), ko: s.ko + (ok ? 0 : 1) }))
   }
 
   const rate = async (r: Rating) => {
@@ -94,17 +92,11 @@ export default function Review({ mode, filters, onDone }: Props) {
       const shown = (repeats.current.get(card.id) ?? 0) + 1
       repeats.current.set(card.id, shown)
 
-      const soon = new Date(res.due).getTime() - Date.now() < HORIZON
-      if (soon && shown <= MAX_REPEATS) {
+      if (new Date(res.due).getTime() - Date.now() < HORIZON && shown <= MAX_REPEATS) {
         const list = [...cards]
-        list.splice(Math.min(i + 1 + GAP, list.length), 0, {
-          ...card,
-          isNew: false,
-          previews: res.previews
-        })
+        list.splice(Math.min(i + 1 + GAP, list.length), 0, { ...card, isNew: false, previews: res.previews })
         setCards(list)
       }
-
       setInput('')
       setRevealed(false)
       setSeen(seen + 1)
@@ -116,12 +108,21 @@ export default function Review({ mode, filters, onDone }: Props) {
     }
   }
 
-  const next = async () => {
+  const next = async (knew = correct) => {
     if (!card || !revealed || sending) return
     setSending(true)
     try {
-      await logPractice({ cardId: card.id, answer: input || null, correct })
-      await advance()
+      await logPractice({ cardId: card.id, answer: input || null, correct: knew })
+      setInput('')
+      setRevealed(false)
+      setSeen(seen + 1)
+      if (cards && i + 1 >= cards.length) {
+        const r = await fetchBatch()
+        setCards(r.cards)
+        setI(0)
+      } else {
+        setI(i + 1)
+      }
     } catch (e) {
       setError(String(e))
     } finally {
@@ -160,7 +161,7 @@ export default function Review({ mode, filters, onDone }: Props) {
         <h1>{empty ? 'Rien à travailler' : practice ? 'Entraînement terminé' : 'Session terminée'}</h1>
         <p className="sub">
           {empty
-            ? 'Aucune carte ne correspond. Ajoute des caractères au paquet, ou élargis la sélection.'
+            ? 'Aucune carte ne correspond. Ajoute du contenu au paquet, ou élargis la sélection.'
             : `${score.ok} juste${score.ok > 1 ? 's' : ''} · ${score.ko} raté${score.ko > 1 ? 's' : ''} sur ${seen}`}
         </p>
         <button className="primary" onClick={onDone}>Retour</button>
@@ -169,9 +170,11 @@ export default function Review({ mode, filters, onDone }: Props) {
   }
 
   const answer = answerOf(card)
+  const sentence = card.script === 'sentence'
   const choiceClass = (ch: string) => {
     const parts = ['choice']
     if (card.kind === 'recall') parts.push('jp')
+    if (card.kind === 'cloze') parts.push('jp', 'word')
     if (revealed && ch === answer) parts.push('good')
     if (revealed && ch === input && !correct) parts.push('bad')
     return parts.join(' ')
@@ -180,28 +183,36 @@ export default function Review({ mode, filters, onDone }: Props) {
   return (
     <main className="page review">
       <div className="bar">
-        {practice ? (
-          <span className="tag">entraînement libre</span>
-        ) : (
-          <div className="progress"><span style={{ width: (i / cards.length) * 100 + '%' }} /></div>
-        )}
-        <span className="mono">
-          {practice ? `${seen} vues · ${score.ok} / ${seen || 1}` : `${i + 1} / ${cards.length}`}
-        </span>
+        {practice
+          ? <span className="tag">entraînement libre</span>
+          : <div className="progress"><span style={{ width: (i / cards.length) * 100 + '%' }} /></div>}
+        <span className="mono">{practice ? `${seen} vues` : `${i + 1} / ${cards.length}`}</span>
         <button className="link" onClick={onDone}>Quitter</button>
       </div>
 
-      <div className="card">
+      <div className={sentence ? 'card sentence' : 'card'}>
         {!practice && card.isNew && <span className="badge">nouvelle</span>}
         {card.strokes !== null && <span className="strokes mono">{card.strokes} traits</span>}
 
         <span className="prompt-label">{PROMPTS[card.kind + ':' + card.script] ?? 'À toi'}</span>
 
-        {card.kind === 'recall'
-          ? <span className="romaji">{card.reading}</span>
-          : <span className="glyph jp">{card.glyph}</span>}
+        {card.kind === 'cloze' ? (
+          <p className="jp phrase">
+            {card.words.map((w, n) =>
+              n === card.blank
+                ? <b key={n} className={revealed ? 'gap filled' : 'gap'}>{revealed ? w : '＿＿'}</b>
+                : <span key={n}>{w}</span>
+            )}
+          </p>
+        ) : card.kind === 'recall' ? (
+          <span className="romaji">{card.reading}</span>
+        ) : sentence ? (
+          <p className="jp phrase">{card.text}</p>
+        ) : (
+          <span className="glyph jp">{card.text}</span>
+        )}
 
-        {typed ? (
+        {form === 'typed' && (
           <form onSubmit={e => { e.preventDefault(); reveal(input) }}>
             <input
               ref={box}
@@ -215,8 +226,10 @@ export default function Review({ mode, filters, onDone }: Props) {
               spellCheck={false}
             />
           </form>
-        ) : (
-          <div className={card.kind === 'meaning' ? 'choices text' : 'choices'}>
+        )}
+
+        {form === 'choice' && (
+          <div className={card.kind === 'meaning' || card.kind === 'cloze' ? 'choices text' : 'choices'}>
             {card.choices.map(ch => (
               <button key={ch} className={choiceClass(ch)} disabled={revealed} onClick={() => { setInput(ch); reveal(ch) }}>
                 {ch}
@@ -225,11 +238,22 @@ export default function Review({ mode, filters, onDone }: Props) {
           </div>
         )}
 
+        {form === 'reveal' && !revealed && (
+          <button className="secondary wide" onClick={() => reveal('')}>Afficher la traduction</button>
+        )}
+
         {revealed && (
           <div className="verdict">
-            <span className={correct ? 'good' : 'bad'}>{correct ? 'Juste' : 'Raté'}</span>
+            {form !== 'reveal' && (
+              <span className={correct ? 'good' : 'bad'}>{correct ? 'Juste' : 'Raté'}</span>
+            )}
 
-            {card.script === 'kanji' ? (
+            {sentence ? (
+              <div className="detail">
+                <span className="sens">{card.translation}</span>
+                {card.kind === 'cloze' && <span className="lectures jp">{card.text}</span>}
+              </div>
+            ) : card.script === 'kanji' ? (
               <div className="detail">
                 <span className="sens">
                   {card.meanings.join(', ')}
@@ -242,11 +266,11 @@ export default function Review({ mode, filters, onDone }: Props) {
               </div>
             ) : (
               <span className="detail">
-                <span className="jp big">{card.glyph}</span> = {card.reading}
+                <span className="jp big">{card.text}</span> = {card.reading}
               </span>
             )}
 
-            {!correct && (
+            {form !== 'reveal' && !correct && (
               <button className="link" onClick={() => { setCorrect(true); setScore(s => ({ ok: s.ok + 1, ko: s.ko - 1 })) }}>
                 en fait c’était juste
               </button>
@@ -256,7 +280,18 @@ export default function Review({ mode, filters, onDone }: Props) {
       </div>
 
       {revealed && (practice ? (
-        <button className="primary" disabled={sending} onClick={next}>Continuer</button>
+        form === 'reveal' ? (
+          <div className="ratings two">
+            <button className="rating" disabled={sending} onClick={() => next(false)}>
+              <span className="k">Je ne savais pas</span>
+            </button>
+            <button className="rating suggested" disabled={sending} onClick={() => next(true)}>
+              <span className="k">Je savais</span>
+            </button>
+          </div>
+        ) : (
+          <button className="primary" disabled={sending} onClick={() => next()}>Continuer</button>
+        )
       ) : (
         <div className="ratings">
           {RATINGS.map(r => (
@@ -268,7 +303,7 @@ export default function Review({ mode, filters, onDone }: Props) {
         </div>
       ))}
 
-      {!revealed && typed && <p className="hint">Entrée pour valider</p>}
+      {!revealed && form === 'typed' && <p className="hint">Entrée pour valider</p>}
     </main>
   )
 }

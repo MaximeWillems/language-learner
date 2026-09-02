@@ -69,6 +69,13 @@ chacun : lire le signe (saisie libre) et le reconnaitre parmi quatre.
 et donner une lecture (saisie libre). 1 987 ont un sens en francais ; les 149 restants,
 tous de niveau college, s'affichent en anglais avec une mention.
 
+**Phrases** — 6 000 phrases reelles traduites en francais, classees en quatre niveaux
+et decoupees en mots. Deux cartes chacune : **comprendre** (on retourne la carte et on
+se juge) et **texte a trous** (un mot est masque, a retrouver parmi quatre).
+
+Le texte a trous est a choix multiples et non en saisie libre : sans methode de saisie
+japonaise, taper 行った au clavier romaji est impossible.
+
 **Le moteur** — planification par FSRS (`ts-fsrs`), avec l'intervalle de chaque note
 affiche avant de choisir. Plafond de 20 nouvelles cartes par jour, revisions et
 nouveautes melangees. Chaque reponse est journalisee dans `review_log` : c'est cette
@@ -115,6 +122,24 @@ regenerer `migrations/0004_seed_kanji.sql`, telecharger
 node scripts/import-kanji.mjs chemin/vers/kanjidic2.xml
 ```
 
+Les phrases croisent deux sources : Tatoeba pour les textes et les traductions
+francaises, le corpus Tanaka pour le decoupage en mots. Ce dernier evite d'embarquer
+un analyseur morphologique, dont le dictionnaire pese 15 Mo et ne tiendrait pas dans
+un navigateur — et son decoupage est fait a la main, donc plus fiable.
+
+Telecharger dans un meme dossier `jpn_sentences.tsv`, `fra_sentences.tsv` et
+`jpn-fra_links.tsv` depuis `https://downloads.tatoeba.org/exports/per_language/`,
+ainsi que `http://ftp.edrdg.org/pub/Nihongo/examples.utf.gz`, puis :
+
+```
+node scripts/import-sentences.mjs chemin/vers/le/dossier
+```
+
+Le script ne garde que les phrases dont le decoupage couvre au moins 85 % du texte :
+Tanaka n'annote pas les noms propres, et une phrase a trous partiels est inexploitable.
+Il ecarte aussi celles dont tous les mots sont deja largement couverts, sinon le tri
+par frequence produit cinquante variations de la meme tournure.
+
 ## Versions
 
 La version vit a un seul endroit : `shared/version.ts`. L'interface et le Worker
@@ -128,10 +153,13 @@ refonte. **A incrementer dans le meme commit que le changement**, avec une entre
 
 ## Licences des donnees
 
-KANJIDIC2 est publie par l'Electronic Dictionary Research and Development Group sous
-licence CC BY-SA : **la mention de la source est obligatoire**. Elle figure en bas de
-l'ecran d'accueil. Toute source ajoutee plus tard (JMdict, Tatoeba, KanjiVG) porte la
-meme obligation.
+Trois sources, **toutes avec mention obligatoire**, affichee en bas de l'accueil :
+
+- **KANJIDIC2** et le **corpus Tanaka** — Electronic Dictionary Research and
+  Development Group, CC BY-SA
+- **Tatoeba** — CC BY 2.0 FR
+
+Toute source ajoutee plus tard (JMdict, KanjiVG) porte la meme obligation.
 
 ## Raccourcis clavier
 
@@ -151,6 +179,8 @@ directement Encore / Dur / Bon / Facile.
 
 ## Suite
 
-Phase 02 : les phrases — script d'import avec decoupage en mots, liens
-phrase / mot / caractere, traduction et texte a trous.
-Ensuite : ecran de statistiques, confort d'ajout, mobile, outil de trace.
+0.7 : reprendre la main sur une carte — suspendre, remettre a zero, consulter
+l'historique, et surtout detecter les cartes ratees en boucle.
+0.8 : ecran de statistiques.
+0.9 : mode histoire — un parcours guide qui *propose* sans jamais verrouiller.
+Ensuite : glose des mots via JMdict, mobile, outil de trace, audio.

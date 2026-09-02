@@ -10,8 +10,9 @@ const LANG = 'ja'
 const DEFAULT_NEW_PER_DAY = 20
 
 interface Row extends CardRow {
-  kind: 'reading' | 'recall' | 'meaning'
-  glyph: string
+  item_id: number
+  kind: 'reading' | 'recall' | 'meaning' | 'cloze'
+  text: string
   reading: string
   script: Script
   grp: string
@@ -20,6 +21,7 @@ interface Row extends CardRow {
   on_readings: string | null
   kun_readings: string | null
   strokes: number | null
+  translation: string | null
 }
 
 interface Kana { glyph: string; reading: string; kind: Script }
@@ -39,15 +41,14 @@ const pick = <T,>(from: T[], n: number, skip: (v: T) => boolean): T[] => {
   return [...out]
 }
 
-const COLS = `c.id, c.kind, c.due, c.stability, c.difficulty, c.elapsed_days, c.scheduled_days,
-         c.learning_steps, c.reps, c.lapses, c.state, c.last_review,
-         ch.glyph, ch.reading, ch.kind AS script, ch.grp,
-         ch.meanings, ch.meaning_lang, ch.on_readings, ch.kun_readings, ch.strokes`
+const COLS = `id, item_id, kind, due, stability, difficulty, elapsed_days, scheduled_days,
+         learning_steps, reps, lapses, state, last_review,
+         text, reading, script, grp, meanings, meaning_lang, on_readings, kun_readings,
+         strokes, translation`
 
 const FROM = `
-    FROM card c
-    JOIN character ch ON ch.id = c.item_id
-   WHERE c.user_id = ? AND c.lang = ? AND c.suspended = 0 AND c.item_type = 'character'`
+    FROM card_item
+   WHERE user_id = ? AND lang = ? AND suspended = 0`
 
 const SELECT = `SELECT ${COLS}${FROM}`
 
@@ -57,8 +58,8 @@ const SELECT = `SELECT ${COLS}${FROM}`
 const NEW_CARDS = `
   SELECT * FROM (
     SELECT ${COLS},
-           ROW_NUMBER() OVER (PARTITION BY ch.kind ORDER BY ch.ord, c.kind) AS rn
-      ${FROM} AND c.state = 0
+           ROW_NUMBER() OVER (PARTITION BY script ORDER BY ord, kind) AS rn
+      ${FROM} AND state = 0
   )
    WHERE rn <= ?
    ORDER BY rn, script
@@ -90,10 +91,10 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
   const n = (i: number) => res[i].results[0]?.n ?? 0
 
   const deck = await db.prepare(
-    `SELECT ch.kind AS script, c.kind AS kind, COUNT(*) AS n
-       FROM card c JOIN character ch ON ch.id = c.item_id
-      WHERE c.user_id = ? AND c.lang = ? AND c.suspended = 0
-      GROUP BY ch.kind, c.kind`
+    `SELECT script, kind, COUNT(*) AS n
+       FROM card_item
+      WHERE user_id = ? AND lang = ? AND suspended = 0
+      GROUP BY script, kind`
   ).bind(u, LANG).all<Counts['deck'][number]>()
 
   return {
@@ -118,23 +119,46 @@ function interleave(due: Row[], fresh: Row[]): Row[] {
   return out
 }
 
-function toCard(row: Row, kana: Kana[], senses: string[], now: Date): QueueCard {
+interface Pools {
+  kana: Kana[]
+  senses: string[]
+  words: Map<number, string[]>
+  surfaces: string[]
+}
+
+const HAS_KANJI = /[一-龯]/
+
+// Le mot masque est fixe par l'identifiant de carte : la meme carte pose toujours la
+// meme question. On evite les particules d'un seul kana, qui se devinent sans rien savoir.
+function blankIndex(cardId: number, words: string[]): number {
+  const all = words.map((_, i) => i)
+  const good = all.filter(i => HAS_KANJI.test(words[i]) || words[i].length >= 2)
+  const pool = good.length ? good : all
+  return pool[cardId % pool.length]
+}
+
+function toCard(row: Row, p: Pools, now: Date): QueueCard {
   const meanings = list(row.meanings)
+  const words = p.words.get(row.item_id) ?? []
   const choices: string[] = []
+  let blank = -1
 
   if (row.kind === 'recall') {
-    const others = kana.filter(k => k.kind === row.script && k.reading !== row.reading)
-    choices.push(row.glyph, ...pick(others, 3, k => k.glyph === row.glyph).map(k => k.glyph))
-    choices.sort(() => Math.random() - 0.5)
+    const others = p.kana.filter(k => k.kind === row.script && k.reading !== row.reading)
+    choices.push(row.text, ...pick(others, 3, k => k.glyph === row.text).map(k => k.glyph))
   } else if (row.kind === 'meaning' && meanings.length) {
-    choices.push(meanings[0], ...pick(senses, 3, v => meanings.includes(v)))
-    choices.sort(() => Math.random() - 0.5)
+    choices.push(meanings[0], ...pick(p.senses, 3, v => meanings.includes(v)))
+  } else if (row.kind === 'cloze' && words.length) {
+    blank = blankIndex(row.id, words)
+    const answer = words[blank]
+    choices.push(answer, ...pick(p.surfaces, 3, v => v === answer || words.includes(v)))
   }
+  if (choices.length) choices.sort(() => Math.random() - 0.5)
 
   return {
     id: row.id,
     kind: row.kind,
-    glyph: row.glyph,
+    text: row.text,
     reading: row.reading,
     script: row.script,
     grp: row.grp,
@@ -145,8 +169,48 @@ function toCard(row: Row, kana: Kana[], senses: string[], now: Date): QueueCard 
     meaningLang: row.meaning_lang ?? 'fr',
     onReadings: list(row.on_readings),
     kunReadings: list(row.kun_readings),
-    strokes: row.strokes
+    strokes: row.strokes,
+    translation: row.translation ?? '',
+    words,
+    blank
   }
+}
+
+// Viviers de leurres et mots des phrases, charges seulement si la file en a besoin
+async function buildPools(db: D1Database, rows: Row[]): Promise<Pools> {
+  const kana = rows.some(r => r.kind === 'recall')
+    ? (await db.prepare(
+        `SELECT glyph, reading, kind FROM character WHERE lang=? AND kind<>'kanji' AND grp<>'rare'`
+      ).bind(LANG).all<Kana>()).results
+    : []
+
+  const senses = rows.some(r => r.kind === 'meaning' && r.script === 'kanji')
+    ? (await db.prepare(
+        `SELECT json_extract(meanings, '$[0]') AS m FROM character
+          WHERE lang=? AND kind='kanji' AND meanings IS NOT NULL ORDER BY RANDOM() LIMIT 80`
+      ).bind(LANG).all<{ m: string }>()).results.map(r => r.m).filter(Boolean)
+    : []
+
+  const ids = [...new Set(rows.filter(r => r.script === 'sentence').map(r => r.item_id))]
+  const words = new Map<number, string[]>()
+  let surfaces: string[] = []
+
+  if (ids.length) {
+    const res = await db.prepare(
+      `SELECT sentence_id, surface FROM sentence_word
+        WHERE sentence_id IN (${ph(ids.length)}) ORDER BY sentence_id, pos`
+    ).bind(...ids).all<{ sentence_id: number; surface: string }>()
+    for (const r of res.results) {
+      const acc = words.get(r.sentence_id) ?? []
+      acc.push(r.surface)
+      words.set(r.sentence_id, acc)
+    }
+    surfaces = (await db.prepare(
+      `SELECT DISTINCT surface FROM sentence_word ORDER BY RANDOM() LIMIT 150`
+    ).all<{ surface: string }>()).results.map(r => r.surface)
+  }
+
+  return { kana, senses, words, surfaces }
 }
 
 const api = new Hono<Env>()
@@ -173,21 +237,51 @@ api.post('/deck', async c => {
   const now = new Date()
   const due = blank(now).due.toISOString()
 
-  const chars = await c.env.DB.prepare(
-    `SELECT id, kind FROM character WHERE lang=? AND kind IN (${ph(scripts.length)}) AND grp IN (${ph(groups.length)}) ORDER BY ord`
-  ).bind(LANG, ...scripts, ...groups).all<{ id: number; kind: string }>()
+  const charScripts = scripts.filter(s => s !== 'sentence')
+  const charGroups = groups.filter(g => !g.startsWith('level'))
+  const levels = groups
+    .filter(g => g.startsWith('level'))
+    .map(g => Number(g.slice(5)))
+    .filter(n => Number.isFinite(n))
 
-  const insert = c.env.DB.prepare(
+  const insertChar = c.env.DB.prepare(
     `INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
      VALUES (?, ?, 'character', ?, ?, ?, ?)`
   )
+  const insertSentence = c.env.DB.prepare(
+    `INSERT OR IGNORE INTO card (user_id, lang, item_type, item_id, kind, due, created_at)
+     VALUES (?, ?, 'sentence', ?, ?, ?, ?)`
+  )
+
   const stmts = []
-  for (const ch of chars.results) {
-    const kinds = ch.kind === 'kanji' ? ['meaning', 'reading'] : ['reading', 'recall']
-    for (const kind of kinds) {
-      stmts.push(insert.bind(u, LANG, ch.id, kind, due, now.toISOString()))
+
+  if (charScripts.length && charGroups.length) {
+    const chars = await c.env.DB.prepare(
+      `SELECT id, kind FROM character
+        WHERE lang=? AND kind IN (${ph(charScripts.length)}) AND grp IN (${ph(charGroups.length)})
+        ORDER BY ord`
+    ).bind(LANG, ...charScripts, ...charGroups).all<{ id: number; kind: string }>()
+
+    for (const ch of chars.results) {
+      const kinds = ch.kind === 'kanji' ? ['meaning', 'reading'] : ['reading', 'recall']
+      for (const kind of kinds) {
+        stmts.push(insertChar.bind(u, LANG, ch.id, kind, due, now.toISOString()))
+      }
     }
   }
+
+  if (scripts.includes('sentence') && levels.length) {
+    const sentences = await c.env.DB.prepare(
+      `SELECT id FROM sentence WHERE lang=? AND level IN (${ph(levels.length)}) ORDER BY id`
+    ).bind(LANG, ...levels).all<{ id: number }>()
+
+    for (const s of sentences.results) {
+      for (const kind of ['meaning', 'cloze']) {
+        stmts.push(insertSentence.bind(u, LANG, s.id, kind, due, now.toISOString()))
+      }
+    }
+  }
+
   for (let i = 0; i < stmts.length; i += 100) await c.env.DB.batch(stmts.slice(i, i + 100))
 
   return c.json(await counts(c.env.DB, u))
@@ -199,7 +293,7 @@ api.get('/queue', async c => {
   const now = new Date()
   const ct = await counts(c.env.DB, u)
 
-  const reviews = await c.env.DB.prepare(`${SELECT} AND c.state<>0 AND c.due<=? ORDER BY c.due LIMIT ?`)
+  const reviews = await c.env.DB.prepare(`${SELECT} AND state<>0 AND due<=? ORDER BY due LIMIT ?`)
     .bind(u, LANG, now.toISOString(), limit).all<Row>()
 
   const room = Math.min(ct.newLeftToday, Math.max(0, limit - reviews.results.length))
@@ -209,21 +303,10 @@ api.get('/queue', async c => {
 
   const queue = interleave(reviews.results, fresh)
 
-  const kana = queue.some(r => r.kind === 'recall')
-    ? (await c.env.DB.prepare(
-        `SELECT glyph, reading, kind FROM character WHERE lang=? AND kind<>'kanji' AND grp<>'rare'`
-      ).bind(LANG).all<Kana>()).results
-    : []
-
-  const senses = queue.some(r => r.kind === 'meaning')
-    ? (await c.env.DB.prepare(
-        `SELECT json_extract(meanings, '$[0]') AS m FROM character
-          WHERE lang=? AND kind='kanji' AND meanings IS NOT NULL ORDER BY RANDOM() LIMIT 80`
-      ).bind(LANG).all<{ m: string }>()).results.map(r => r.m).filter(Boolean)
-    : []
+  const p = await buildPools(c.env.DB, queue)
 
   return c.json({
-    cards: queue.map(r => toCard(r, kana, senses, now)),
+    cards: queue.map(r => toCard(r, p, now)),
     counts: ct
   })
 })
@@ -292,28 +375,17 @@ api.get('/practice', async c => {
 
   const clauses: string[] = []
   const args: unknown[] = [u, LANG]
-  if (scripts.length) { clauses.push(`ch.kind IN (${ph(scripts.length)})`); args.push(...scripts) }
-  if (groups.length) { clauses.push(`ch.grp IN (${ph(groups.length)})`); args.push(...groups) }
-  if (kinds.length) { clauses.push(`c.kind IN (${ph(kinds.length)})`); args.push(...kinds) }
+  if (scripts.length) { clauses.push(`script IN (${ph(scripts.length)})`); args.push(...scripts) }
+  if (groups.length) { clauses.push(`grp IN (${ph(groups.length)})`); args.push(...groups) }
+  if (kinds.length) { clauses.push(`kind IN (${ph(kinds.length)})`); args.push(...kinds) }
   const filter = clauses.length ? ' AND ' + clauses.join(' AND ') : ''
 
   const rows = (await c.env.DB.prepare(`${SELECT}${filter} ORDER BY RANDOM() LIMIT ?`)
     .bind(...args, limit).all<Row>()).results
 
-  const kana = rows.some(r => r.kind === 'recall')
-    ? (await c.env.DB.prepare(
-        `SELECT glyph, reading, kind FROM character WHERE lang=? AND kind<>'kanji' AND grp<>'rare'`
-      ).bind(LANG).all<Kana>()).results
-    : []
+  const p = await buildPools(c.env.DB, rows)
 
-  const senses = rows.some(r => r.kind === 'meaning')
-    ? (await c.env.DB.prepare(
-        `SELECT json_extract(meanings, '$[0]') AS m FROM character
-          WHERE lang=? AND kind='kanji' AND meanings IS NOT NULL ORDER BY RANDOM() LIMIT 80`
-      ).bind(LANG).all<{ m: string }>()).results.map(r => r.m).filter(Boolean)
-    : []
-
-  return c.json({ cards: rows.map(r => toCard(r, kana, senses, now)), counts: await counts(c.env.DB, u) })
+  return c.json({ cards: rows.map(r => toCard(r, p, now)), counts: await counts(c.env.DB, u) })
 })
 
 api.post('/practice/log', async c => {

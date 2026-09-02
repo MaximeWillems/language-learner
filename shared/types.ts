@@ -1,11 +1,12 @@
-export type CardKind = 'reading' | 'recall' | 'meaning'
-export type Script = 'hiragana' | 'katakana' | 'kanji'
+export type CardKind = 'reading' | 'recall' | 'meaning' | 'cloze'
+/** Famille de contenu. 'sentence' n'est pas une ecriture, mais se selectionne pareil. */
+export type Script = 'hiragana' | 'katakana' | 'kanji' | 'sentence'
 export type Rating = 1 | 2 | 3 | 4
 
 export interface QueueCard {
   id: number
   kind: CardKind
-  glyph: string
+  text: string
   reading: string
   script: Script
   grp: string
@@ -17,6 +18,9 @@ export interface QueueCard {
   onReadings: string[]
   kunReadings: string[]
   strokes: number | null
+  translation: string
+  words: string[]
+  blank: number
 }
 
 export interface DeckSlice {
