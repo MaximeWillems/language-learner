@@ -180,39 +180,6 @@ body {
 }
 .panel > .secondary { margin-top: var(--s1); }
 
-details.manage { padding: 0; }
-details.manage > summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--s2);
-  padding: var(--s3);
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
-  list-style: none;
-}
-details.manage > summary::-webkit-details-marker { display: none; }
-details.manage > summary small { font-weight: 400; font-size: .78rem; color: var(--muted); }
-details.manage > summary::after {
-  content: "+";
-  font-family: var(--f-mono);
-  color: var(--muted);
-  margin-left: auto;
-  padding-left: var(--s2);
-}
-details.manage[open] > summary::after { content: "−"; }
-details.manage > summary:hover { color: var(--ai); }
-details.manage > summary:focus-visible { outline: 2px solid var(--ai); outline-offset: -2px; }
-details.manage .body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-  padding: 0 var(--s3) var(--s3);
-  border-top: 1px solid var(--line-soft);
-  padding-top: var(--s3);
-}
-
 /* ---------- boutons ---------- */
 
 button {
@@ -478,70 +445,29 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 }
 
 /* ==========================================================
-   Grand ecran : deux colonnes. L'action du jour et la mise en
-   pratique a gauche, le suivi et la configuration a droite.
+   Grand ecran : on elargit et on aere, l'app reste en une colonne
+   d'ecrans puisque la navigation par onglets separe deja les sujets.
    ========================================================== */
 
 @media (min-width: 900px) {
-  .page {
-    max-width: 62rem;
-    display: grid;
-    grid-template-columns: 1.15fr .85fr;
-    gap: var(--s4);
-    align-items: start;
-    padding: var(--s5) var(--s4) var(--s5);
-  }
-
-  .page > .banner,
-  .page > .head,
-  .page > .error,
-  .page > .credits { grid-column: 1 / -1; }
+  .page { max-width: 46rem; padding: var(--s5) var(--s4); gap: var(--s4); }
 
   .brand { font-size: 1.9rem; }
   .head h1 { font-size: 1.9rem; }
-  .sub { font-size: 1rem; }
 
-  .tracks { gap: var(--s3); }
-  .session { padding: var(--s4); gap: var(--s1); }
+  .tracks { flex-direction: row; }
+  .tracks .session { flex: 1; padding: var(--s4); }
   .session .n { font-size: 3.6rem; }
   .session .l { font-size: .88rem; }
   .session .primary { padding: .9rem 1.2rem; font-size: 1rem; }
 
-  /* en colonne etroite, le suivi se lit mieux en lignes qu'en trois cases */
-  .track {
-    grid-template-columns: 1fr;
-    padding: var(--s3) var(--s4);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-  }
-  .track > div {
-    flex-direction: row;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--s3);
-    padding: var(--s2) 0;
-    border-left: 0;
-    border-top: 1px solid var(--line-soft);
-  }
-  .track > div:first-child { border-top: 0; }
-  .track .n { font-size: 1.5rem; order: 2; }
-  .track .l { font-size: .82rem; text-align: left; order: 1; }
-
   .panel { padding: var(--s4); gap: var(--s3); }
   .panel h2 { font-size: 1.1rem; }
-  details.manage > summary { padding: var(--s4); font-size: 1.1rem; }
-  details.manage .body { padding: var(--s4); padding-top: var(--s3); gap: var(--s3); }
-
   .credits { flex-direction: row; justify-content: space-between; gap: var(--s4); }
 
   /* ---- ecran de revision : une colonne large et centree ---- */
 
-  .page.review {
-    display: flex;
-    max-width: 44rem;
-    gap: var(--s4);
-  }
+  .page.review { max-width: 44rem; }
   .card { padding: var(--s5) var(--s4); gap: var(--s4); }
   .glyph { font-size: 9.5rem; }
   .romaji { font-size: 5rem; }
@@ -560,7 +486,7 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 }
 
 @media (min-width: 1400px) {
-  .page { max-width: 68rem; }
+  .page { max-width: 52rem; }
   .session .n { font-size: 4.2rem; }
 }
 
@@ -652,4 +578,91 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
   font-size: .7rem;
   line-height: 1.7;
   color: var(--muted);
+}
+
+/* ---------- navigation par onglets ---------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: calc(var(--s4) * -1 + var(--s2));
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  position: relative;
+  padding: .55rem .9rem;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  font-size: .9rem;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--ink-soft); }
+.tab.on { color: var(--ai); border-bottom-color: var(--ai); font-weight: 600; }
+.tab:focus-visible { outline: 2px solid var(--ai); outline-offset: -3px; }
+
+.tab .dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: .35rem;
+  vertical-align: middle;
+  background: var(--shu);
+  border-radius: 50%;
+}
+
+/* ---------- statistiques ---------- */
+
+.meter {
+  display: flex;
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.meter .known { background: var(--good); }
+.meter .doing { background: var(--ai); }
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  height: 9rem;
+  list-style: none;
+  overflow-x: auto;
+}
+.bars li {
+  display: flex;
+  flex: 1 0 1.6rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .2rem;
+  height: 100%;
+}
+.bars .bar {
+  width: 100%;
+  max-width: 2.2rem;
+  background: var(--ai);
+  border-radius: 2px 2px 0 0;
+  transition: height .25s;
+}
+.bars .v { font-size: .62rem; color: var(--ink-soft); }
+.bars .d {
+  font-size: .58rem;
+  color: var(--muted);
+  writing-mode: vertical-rl;
+  letter-spacing: .02em;
+}
+
+@media (min-width: 900px) {
+  .bars { height: 11rem; gap: 3px; }
+  .bars .v { font-size: .7rem; }
+  .bars .d { font-size: .66rem; writing-mode: horizontal-tb; }
 }

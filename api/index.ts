@@ -440,6 +440,70 @@ api.post('/practice/log', async c => {
   return c.json({ ok: true })
 })
 
+api.get('/stats', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const now = new Date()
+  const since = new Date(now.getTime() - 13 * 86400000).toISOString().slice(0, 10)
+  const until = new Date(now.getTime() + 14 * 86400000).toISOString()
+
+  const res = await c.env.DB.batch([
+    // etat 0 = neuve, 2 = acquise, 1 et 3 = en cours d'apprentissage
+    c.env.DB.prepare(
+      `SELECT state, COUNT(*) AS n FROM card
+        WHERE user_id=? AND lang=? AND suspended=0 GROUP BY state`
+    ).bind(u, LANG),
+    c.env.DB.prepare(
+      `SELECT date(l.reviewed_at) AS day, COUNT(*) AS n, SUM(COALESCE(l.correct,0)) AS ok
+         FROM review_log l JOIN card c ON c.id = l.card_id
+        WHERE c.user_id=? AND l.mode='review' AND date(l.reviewed_at) >= ?
+        GROUP BY day ORDER BY day`
+    ).bind(u, since),
+    c.env.DB.prepare(
+      `SELECT date(due) AS day, COUNT(*) AS n FROM card
+        WHERE user_id=? AND lang=? AND suspended=0 AND state<>0 AND due < ?
+        GROUP BY day ORDER BY day`
+    ).bind(u, LANG, until),
+    c.env.DB.prepare(
+      `SELECT COUNT(*) AS n, SUM(COALESCE(l.correct,0)) AS ok
+         FROM review_log l JOIN card c ON c.id = l.card_id
+        WHERE c.user_id=? AND l.mode='review' AND l.correct IS NOT NULL`
+    ).bind(u),
+    c.env.DB.prepare(
+      `SELECT DISTINCT date(l.reviewed_at) AS day
+         FROM review_log l JOIN card c ON c.id = l.card_id
+        WHERE c.user_id=? ORDER BY day DESC LIMIT 400`
+    ).bind(u)
+  ])
+
+  const states = new Map<number, number>()
+  for (const r of res[0].results as { state: number; n: number }[]) states.set(r.state, r.n)
+
+  const total = res[3].results[0] as { n: number; ok: number } | undefined
+
+  // serie en cours : on tolere que la journee d'aujourd'hui ne soit pas encore entamee
+  const days = (res[4].results as { day: string }[]).map(r => r.day)
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  let streak = 0
+  const cursor = new Date(now)
+  if (days[0] && days[0] !== iso(cursor)) cursor.setDate(cursor.getDate() - 1)
+  for (const d of days) {
+    if (d !== iso(cursor)) break
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+
+  return c.json({
+    fresh: states.get(0) ?? 0,
+    learning: (states.get(1) ?? 0) + (states.get(3) ?? 0),
+    known: states.get(2) ?? 0,
+    answered: total?.n ?? 0,
+    right: total?.ok ?? 0,
+    streak,
+    past: res[1].results,
+    ahead: res[2].results
+  })
+})
+
 // --- cartes a probleme : ratees en boucle, ou mises de cote ---
 
 api.get('/cards/hard', async c => {

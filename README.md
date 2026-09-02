@@ -54,7 +54,8 @@ npm run dev:web                                   # interface sur 5173
 ```
 api/          le Worker : routes Hono + planification FSRS
 shared/       types et comparaison des réponses, utilisés des deux côtés
-src/          l'interface React
+src/          l'interface React : App (navigation), Home, Deck, Stats,
+              Settings, Review
 migrations/   le schéma SQL et les kana
 scripts/      generation des donnees : kana (migration 0002), kanji (migration 0004)
 ```
@@ -80,6 +81,15 @@ japonaise, taper 行った au clavier romaji est impossible.
 affiche avant de choisir. Plafond de 20 nouvelles cartes par jour, revisions et
 nouveautes melangees. Chaque reponse est journalisee dans `review_log` : c'est cette
 table qui permettra plus tard de reentrainer les parametres sur ton propre historique.
+
+**Navigation** — cinq ecrans : Reviser, Caracteres, Phrases, Statistiques, Reglages.
+Chaque famille de contenu a le sien, parce qu'on veut rarement travailler les kanji et
+les phrases dans le meme mouvement.
+
+**Statistiques** — repartition des cartes, taux de reussite, serie de jours, revisions
+des quatorze derniers jours, et **charge planifiee des quatorze prochains**. Ce dernier
+graphique est celui qui sert : un pic annonce une journee lourde, donc le moment de
+baisser le plafond de nouveautes avant de la subir.
 
 **Gestion des cartes** — une carte oubliee six fois ou plus (`lapses`, le compteur
 FSRS) est signalee comme difficile. Depuis la seance ou depuis le panneau « Cartes a
@@ -187,8 +197,8 @@ directement Encore / Dur / Bon / Facile.
 
 ## Suite
 
-0.7 : reprendre la main sur une carte — suspendre, remettre a zero, consulter
-l'historique, et surtout detecter les cartes ratees en boucle.
-0.8 : ecran de statistiques.
-0.9 : mode histoire — un parcours guide qui *propose* sans jamais verrouiller.
+0.9 : mode histoire — un parcours guide qui **propose** sans jamais verrouiller.
+Le cours decide de ce qu'on apprend ensuite, la repetition espacee decide de quand on
+le revoit. Le cout n'est pas technique : un curriculum avec explications n'a pas
+d'equivalent ouvert, chaque lecon devra etre ecrite.
 Ensuite : glose des mots via JMdict, mobile, outil de trace, audio.

@@ -4,6 +4,21 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.8.0 — 22 aout 2026
+
+- **Navigation par onglets** : Reviser, Caracteres, Phrases, Statistiques, Reglages.
+  L'accueil empilait tout dans une seule page qui n'arretait pas de s'allonger.
+- Chaque famille de contenu a son propre ecran : on y ajoute au paquet et on s'y
+  entraine librement, sans passer par les reglages de l'autre.
+- **Statistiques** : repartition acquises / en cours / jamais vues, taux de bonnes
+  reponses, serie de jours consecutifs, revisions des quatorze derniers jours et
+  **charge planifiee des quatorze prochains**. Ce dernier graphique est le plus utile :
+  un pic annonce une journee lourde, donc le moment de lever le pied sur les nouveautes.
+- Les reglages regroupent le rythme et les cartes a problème, avec une pastille dans
+  l'onglet quand une carte demande une decision.
+- `App.tsx` depassait les 400 lignes et melangeait cinq ecrans : decoupe en `Home`,
+  `Deck`, `Stats`, `Settings` et un squelette de navigation.
+
 ## 0.7.0 — 22 aout 2026
 
 - **Cartes a problème.** Une carte oubliee six fois ou plus est signalee pendant la

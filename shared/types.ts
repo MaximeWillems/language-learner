@@ -101,3 +101,20 @@ export interface ReviewResponse {
   interval: string
   previews: Record<Rating, string>
 }
+
+export interface DayCount {
+  day: string
+  n: number
+  ok?: number
+}
+
+export interface Stats {
+  fresh: number
+  learning: number
+  known: number
+  answered: number
+  right: number
+  streak: number
+  past: DayCount[]
+  ahead: DayCount[]
+}

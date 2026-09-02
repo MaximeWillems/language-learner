@@ -1,6 +1,6 @@
 import type {
   CardAction, CardIssue, Counts, DeckRequest, PracticeRequest,
-  QueueResponse, Rating, Review, ReviewResponse
+  QueueResponse, Rating, Review, ReviewResponse, Stats
 } from '../shared/types'
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
@@ -43,3 +43,5 @@ export const getHardCards = () => call<CardIssue[]>('/api/cards/hard')
 export const getHistory = (id: number) => call<Review[]>(`/api/cards/${id}/history`)
 export const cardAction = (id: number, action: CardAction) =>
   post<Counts>(`/api/cards/${id}/action`, { action })
+
+export const getStats = () => call<Stats>('/api/stats')
