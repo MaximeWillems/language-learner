@@ -2,6 +2,8 @@ import { Hono } from 'hono'
 import type { Grade } from 'ts-fsrs'
 import type { CardAction, CardKind, Counts, DeckRequest, QueueCard, Script } from '../shared/types'
 import { LEECH } from '../shared/types'
+import { blankIndex, interleave, pick, spread } from '../shared/queue'
+import { COLS, FROM, KINDS, NEW_CARDS, NEXT_ITEMS, PENDING, SELECT } from '../shared/sql'
 import { VERSION } from '../shared/version'
 import { apply, blank, fromRow, label, previews, type CardRow } from './srs'
 
@@ -32,61 +34,9 @@ const list = (raw: string | null): string[] => {
   try { return JSON.parse(raw) as string[] } catch { return [] }
 }
 
-const pick = <T,>(from: T[], n: number, skip: (v: T) => boolean): T[] => {
-  const out = new Set<T>()
-  let guard = 0
-  while (out.size < n && guard++ < from.length * 4) {
-    const v = from[Math.floor(Math.random() * from.length)]
-    if (v !== undefined && !skip(v)) out.add(v)
-  }
-  return [...out]
-}
-
-const COLS = `id, item_id, kind, due, stability, difficulty, elapsed_days, scheduled_days,
-         learning_steps, reps, lapses, state, last_review,
-         text, reading, script, grp, meanings, meaning_lang, on_readings, kun_readings,
-         strokes, translation`
-
-const FROM = `
-    FROM card_item
-   WHERE user_id = ? AND lang = ? AND suspended = 0`
-
-const SELECT = `SELECT ${COLS}${FROM}`
-
-// Les nouvelles cartes sont servies en alternance entre ecritures. Sans ca, un tri global
-// unique fait passer les 208 kana (ord 0-103) avant le premier kanji (ord 1000+) : ajouter
-// des kanji ne donne rien a reviser pendant des jours.
-const NEW_CARDS = `
-  SELECT * FROM (
-    SELECT ${COLS},
-           ROW_NUMBER() OVER (PARTITION BY script ORDER BY ord, kind) AS rn
-      ${FROM}\${FILTER} AND state = 0
-  )
-   WHERE rn <= ?
-   ORDER BY rn, script
-   LIMIT ?`
-
 const ph = (n: number) => Array(n).fill('?').join(',')
 const who = (h: string | undefined) => h ?? 'local'
 const dayStart = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d.toISOString() }
-
-const KINDS: Record<string, string[]> = {
-  hiragana: ['reading', 'recall'],
-  katakana: ['reading', 'recall'],
-  kanji: ['meaning', 'reading'],
-  sentence: ['meaning', 'cloze'],
-  word: ['meaning', 'reading']
-}
-
-const PENDING = `
-    FROM content ct
-    JOIN deck_selection d
-      ON d.user_id = ? AND d.lang = ct.lang AND d.script = ct.script AND d.grp = ct.grp
-   WHERE ct.lang = ?
-     AND NOT EXISTS (
-       SELECT 1 FROM card k
-        WHERE k.user_id = d.user_id AND k.item_type = ct.item_type AND k.item_id = ct.item_id
-     )`
 
 /**
  * Cree les cartes des elements sur le point d'etre servis, et rien de plus. Avant, tout
@@ -96,14 +46,9 @@ const PENDING = `
 async function materialize(db: D1Database, u: string, want: number, filter: string, args: unknown[]) {
   if (want <= 0) return
 
-  const rows = (await db.prepare(
-    `SELECT * FROM (
-       SELECT ct.item_type, ct.item_id, ct.script,
-              ROW_NUMBER() OVER (PARTITION BY ct.script ORDER BY ct.ord) AS rn
-         ${PENDING}${filter}
-     )
-      WHERE rn <= ? ORDER BY rn, script LIMIT ?`
-  ).bind(u, LANG, ...args, want, want).all<{ item_type: string; item_id: number; script: string }>()).results
+  const rows = (await db.prepare(NEXT_ITEMS.replace('${FILTER}', filter))
+    .bind(u, LANG, ...args, want, want)
+    .all<{ item_type: string; item_id: number; script: string }>()).results
 
   if (!rows.length) return
 
@@ -177,47 +122,12 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
   }
 }
 
-function interleave(due: Row[], fresh: Row[]): Row[] {
-  const out: Row[] = []
-  let d = 0, f = 0
-  while (d < due.length || f < fresh.length) {
-    for (let i = 0; i < 4 && d < due.length; i++) out.push(due[d++])
-    if (f < fresh.length) out.push(fresh[f++])
-  }
-  return out
-}
-
 interface Pools {
   kana: Kana[]
   senses: string[]
   glosses: string[]
   words: Map<number, string[]>
   surfaces: string[]
-}
-
-const HAS_KANJI = /[一-龯]/
-
-// Le mot masque est fixe par l'identifiant de carte : la meme carte pose toujours la
-// meme question. On evite les particules d'un seul kana, qui se devinent sans rien savoir.
-function blankIndex(cardId: number, words: string[]): number {
-  const all = words.map((_, i) => i)
-  const good = all.filter(i => HAS_KANJI.test(words[i]) || words[i].length >= 2)
-  const pool = good.length ? good : all
-  return pool[cardId % pool.length]
-}
-
-// Deux cartes d'un meme element ne doivent pas se suivre : le texte a trous devoile la
-// traduction que la carte de comprehension va demander, et le sens d'un kanji donne sa
-// lecture. On decale la suivante des qu'une repetition apparait.
-function spread(rows: Row[]): Row[] {
-  const out: Row[] = []
-  const rest = [...rows]
-  while (rest.length) {
-    const last = out[out.length - 1]
-    const k = last ? rest.findIndex(r => r.item_id !== last.item_id) : 0
-    out.push(rest.splice(k < 0 ? 0 : k, 1)[0])
-  }
-  return out
 }
 
 function toCard(row: Row, p: Pools, now: Date): QueueCard {

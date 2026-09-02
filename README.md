@@ -53,7 +53,9 @@ npm run dev:web                                   # interface sur 5173
 
 ```
 api/          le Worker : routes Hono + planification FSRS
-shared/       types et comparaison des réponses, utilisés des deux côtés
+shared/       partage entre le Worker et l'interface : types, comparaison des
+              reponses, ordonnancement de la file, requetes SQL
+test/         tests (node:test + sql.js), sans dependance exterieure
 src/          l'interface React : App (navigation), Home, Deck, Stats,
               Settings, Review
 migrations/   le schéma SQL et les kana
@@ -196,6 +198,34 @@ Toute source ajoutee plus tard (JMdict, KanjiVG) porte la meme obligation.
 `Entrée` valide la réponse, puis accepte la note suggérée. `1` `2` `3` `4` choisissent
 directement Encore / Dur / Bon / Facile.
 
+## Tests
+
+```
+npm run check
+```
+
+Enchaine la verification de types, les tests et le rapport de budget d'ecriture. Les
+tests seuls : `npm test`.
+
+Quarante-trois tests, sans service exterieur ni base distante. `sql.js` est du SQLite
+compile en WebAssembly : les migrations sont rejouees en memoire, donc les tests portent
+sur le vrai schema et le vrai moteur, pas sur une imitation.
+
+Les requetes vivent dans `shared/sql.ts` et l'ordonnancement dans `shared/queue.ts`,
+importes a la fois par le Worker et par les tests. **Une requete recopiee dans un test
+finit toujours par diverger de celle qui tourne en production** ; ici c'est la meme.
+
+Ce qui est couvert en priorite, ce sont les pannes deja vecues — chacune a son test de
+non-regression :
+
+| Test | Ce qu'il empeche de revenir |
+| --- | --- |
+| alternance entre familles | les kanji ajoutes n'arrivaient jamais, les kana passant tous avant |
+| composition du paquet | les cartes de phrase comptees comme des kanji, faute de verifier le type |
+| cout d'une selection | 12 000 lignes ecrites d'avance, qui ont fait toucher le plafond D1 |
+| cartes d'un meme element | le texte a trous devoilait la traduction demandee juste apres |
+| entrainement libre | une reponse hors echeance ne doit jamais deplacer une revision |
+
 ## Le budget d'ecriture D1
 
 L'offre gratuite plafonne a **100 000 lignes ecrites par jour**, remis a zero a minuit
@@ -208,9 +238,11 @@ en consomment beaucoup :
 - **la constitution du paquet**, jusqu'a la version 0.9.0 : deux cartes creees d'avance
   par element selectionne. Corrige en 0.9.1 — les cartes naissent a l'introduction.
 
+`npm run budget` chiffre chaque migration et echoue si recreer la base de zero
+depasserait le quota. Aujourd'hui : 53 039 lignes, soit 53 % d'une journee.
+
 En pratique : ne pas lancer un gros import le meme jour qu'une grosse session de mise au
-point. Et toute migration future qui depasse quelques milliers de lignes merite d'etre
-comptee avant d'etre poussee.
+point, et passer toute nouvelle migration au compteur avant de la pousser.
 
 ## Simplifications assumées
 

@@ -4,6 +4,24 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.9.2 — 2 septembre 2026
+
+Rien de visible : cette version outille le projet plutot que l'application.
+
+- **43 tests**, lances par `npm run check`. `sql.js` rejoue les migrations en memoire,
+  donc les tests portent sur le vrai schema et le vrai moteur SQLite.
+- Les requetes SQL et l'ordonnancement de la file sont sortis de `api/index.ts` vers
+  `shared/sql.ts` et `shared/queue.ts`, importes par le Worker **et** par les tests :
+  une requete recopiee dans un test finit toujours par diverger de la vraie.
+- Chaque panne deja vecue a son test de non-regression : famine des kanji, cartes de
+  phrase comptees comme des kanji, cout d'une selection, cartes jumelles qui se
+  suivaient, entrainement libre qui aurait pu deplacer une revision.
+- `npm run budget` chiffre ce que chaque migration ecrit et echoue si recreer la base
+  depassait le quota quotidien de D1. Etat actuel : 53 039 lignes, 53 % d'une journee.
+- Un test a corrige une idee fausse au passage : le rang d'introduction n'a pas besoin
+  d'etre unique globalement — あ et ア partagent le leur — mais il doit l'etre au sein
+  d'une famille, puisque c'est la que l'alternance ordonne.
+
 ## 0.9.1 — 22 aout 2026
 
 - **Correction** : le quota d'ecriture quotidien de D1 a ete atteint. Ajouter du contenu
