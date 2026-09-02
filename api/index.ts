@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Grade } from 'ts-fsrs'
 import type { Counts, DeckRequest, QueueCard, Script } from '../shared/types'
+import { VERSION } from '../shared/version'
 import { apply, blank, fromRow, label, previews, type CardRow } from './srs'
 
 type Env = { Bindings: { DB: D1Database; ASSETS: Fetcher } }
@@ -149,6 +150,8 @@ function toCard(row: Row, kana: Kana[], senses: string[], now: Date): QueueCard 
 }
 
 const api = new Hono<Env>()
+
+api.get('/version', c => c.json({ version: VERSION }))
 
 api.get('/counts', async c => {
   const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))

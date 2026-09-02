@@ -115,6 +115,17 @@ regenerer `migrations/0004_seed_kanji.sql`, telecharger
 node scripts/import-kanji.mjs chemin/vers/kanjidic2.xml
 ```
 
+## Versions
+
+La version vit a un seul endroit : `shared/version.ts`. L'interface et le Worker
+l'importent tous les deux, ce qui permet de detecter un onglet perime — au chargement,
+la page compare sa version compilee a celle que renvoie `/api/version`, et propose de
+recharger si elles different. Le numero est affiche en bas de l'accueil.
+
+Format `x.y.z` : `z` pour une correction, `y` pour une nouvelle fonction, `x` pour une
+refonte. **A incrementer dans le meme commit que le changement**, avec une entree dans
+`CHANGELOG.md` — sinon la version affichee ment.
+
 ## Licences des donnees
 
 KANJIDIC2 est publie par l'Electronic Dictionary Research and Development Group sous

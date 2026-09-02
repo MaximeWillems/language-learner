@@ -32,3 +32,5 @@ export const logPractice = (body: { cardId: number; answer: string | null; corre
   post<{ ok: boolean }>('/api/practice/log', body)
 
 export const saveSettings = (newPerDay: number) => post<Counts>('/api/settings', { newPerDay })
+
+export const getVersion = () => call<{ version: string }>('/api/version')

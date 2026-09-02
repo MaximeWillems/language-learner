@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CardKind, Counts, DeckRequest, PracticeRequest, Script } from '../shared/types'
-import { buildDeck, getCounts, saveSettings } from './api'
+import { VERSION } from '../shared/version'
+import { buildDeck, getCounts, getVersion, saveSettings } from './api'
 import Review from './Review'
 
 const SCRIPTS: { key: Script; label: string; sample: string }[] = [
@@ -36,13 +37,18 @@ const DRILL_KINDS: { key: CardKind; label: string; hint: string }[] = [
   { key: 'meaning', label: 'Sens', hint: 'le kanji → le français' }
 ]
 
+const LABELS: Record<string, string> = {
+  hiragana: 'hiragana',
+  katakana: 'katakana',
+  kanji: 'kanji'
+}
+
 const flip = (list: string[], v: string) =>
   list.includes(v) ? list.filter(x => x !== v) : [...list, v]
 
-const NO_FILTER: PracticeRequest = { scripts: [], groups: [], kinds: [] }
-
 export default function App() {
   const [counts, setCounts] = useState<Counts | null>(null)
+  const [live, setLive] = useState<string | null>(null)
   const [screen, setScreen] = useState<'home' | 'review' | 'practice'>('home')
   const [scripts, setScripts] = useState<Script[]>(['hiragana'])
   const [kanaGroups, setKanaGroups] = useState<string[]>(['gojuon'])
@@ -58,7 +64,10 @@ export default function App() {
       .then(c => { setCounts(c); setCap(String(c.newPerDay)) })
       .catch(e => setError(String(e)))
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    refresh()
+    getVersion().then(v => setLive(v.version)).catch(() => {})
+  }, [])
 
   const create = async (what: string, body: DeckRequest) => {
     setBusy(what)
@@ -99,50 +108,68 @@ export default function App() {
   const matching = total(
     scoped.filter(d => !drillFilters.kinds.length || drillFilters.kinds.includes(d.kind))
   )
-
   const summary = (['hiragana', 'katakana', 'kanji'] as Script[])
     .map(k => ({ k, n: ofScript(k) }))
     .filter(x => x.n > 0)
-    .map(x => x.n + ' cartes ' + x.k)
+    .map(x => x.n + ' ' + LABELS[x.k])
     .join(' · ')
 
-  if (screen === 'review') return <Review mode="review" filters={NO_FILTER} onDone={back} />
-  if (screen === 'practice') {
-    return <Review mode="practice" filters={drillFilters} onDone={back} />
-  }
+  if (screen === 'review') return <Review mode="review" filters={drillFilters} onDone={back} />
+  if (screen === 'practice') return <Review mode="practice" filters={drillFilters} onDone={back} />
 
   const pending = counts ? counts.dueNow + Math.min(counts.newAvailable, counts.newLeftToday) : 0
-
+  const stale = live !== null && live !== VERSION
 
   return (
     <main className="page">
+      {stale && (
+        <div className="banner">
+          <span>Version {live} déployée — ton onglet affiche encore la {VERSION}.</span>
+          <button className="link" onClick={() => location.reload()}>Recharger</button>
+        </div>
+      )}
+
       <header className="head">
-        <span className="jp brand">言葉</span>
-        <h1>Kotoba</h1>
+        <div className="titleline">
+          <span className="jp brand">言葉</span>
+          <h1>Kotoba</h1>
+        </div>
         <p className="sub">Kana, kanji et phrases — à ton rythme.</p>
       </header>
 
       {error && <p className="error">{error}</p>}
 
+      <section className="today">
+        <div className="count">
+          <span className="n">{counts ? pending : '—'}</span>
+          <span className="l">
+            {pending > 1 ? 'cartes à réviser' : pending === 1 ? 'carte à réviser' : 'rien à réviser'}
+          </span>
+        </div>
+        <button className="primary" disabled={!counts || pending === 0} onClick={() => setScreen('review')}>
+          {pending > 0 ? 'Commencer la séance' : 'Tout est à jour'}
+        </button>
+        {counts && counts.dueNow > 0 && counts.newAvailable > 0 && (
+          <p className="split mono">
+            {counts.dueNow} en révision · {Math.min(counts.newAvailable, counts.newLeftToday)} nouvelles
+          </p>
+        )}
+      </section>
+
       {counts && (
-        <section className="stats">
-          <div className="stat"><span className="n">{counts.dueNow}</span><span className="l">à réviser</span></div>
-          <div className="stat"><span className="n">{Math.min(counts.newAvailable, counts.newLeftToday)}</span><span className="l">nouvelles</span></div>
-          <div className="stat"><span className="n">{counts.learned}</span><span className="l">apprises</span></div>
-          <div className="stat"><span className="n">{counts.reviewsToday}</span><span className="l">aujourd’hui</span></div>
+        <section className="track">
+          <div><span className="n">{counts.learned}</span><span className="l">apprises</span></div>
+          <div><span className="n">{counts.reviewsToday}</span><span className="l">révisions aujourd’hui</span></div>
+          <div><span className="n">{counts.cards}</span><span className="l">cartes au total</span></div>
         </section>
       )}
 
-      <button className="primary" disabled={!counts || pending === 0} onClick={() => setScreen('review')}>
-        {pending > 0 ? 'Réviser — ' + pending + (pending > 1 ? ' cartes' : ' carte') : 'Rien à réviser pour l’instant'}
-      </button>
-
-      <section className="deck">
+      <section className="panel">
         <h2>Entraînement libre</h2>
         <p className="hint">
-          Sans limite et sans échéance : tire au hasard dans ton paquet, aussi longtemps que tu veux.
-          Tes réponses sont enregistrées mais <strong>ne modifient pas le calendrier de révision</strong> —
-          répondre hors échéance ne dit rien de ce que tu as vraiment retenu.
+          Sans limite et sans échéance. Tes réponses sont enregistrées mais
+          <strong> ne modifient pas le calendrier de révision</strong> : répondre hors échéance
+          ne dit rien de ce que tu as vraiment retenu.
         </p>
 
         <div className="picker">
@@ -153,11 +180,10 @@ export default function App() {
                 key={s.key}
                 className={drillScripts.includes(s.key) ? 'chip on' : 'chip'}
                 disabled={n === 0}
-                title={n === 0 ? 'Aucune carte de ce type dans ton paquet' : undefined}
                 onClick={() => setDrillScripts(flip(drillScripts, s.key) as Script[])}
               >
                 {s.label}
-                <small>{n === 0 ? 'pas dans le paquet' : n + ' cartes'}</small>
+                <small>{n === 0 ? 'absent du paquet' : n + ' cartes'}</small>
               </button>
             )
           })}
@@ -168,7 +194,6 @@ export default function App() {
               key={k.key}
               className={drillKinds.includes(k.key) ? 'chip on' : 'chip'}
               disabled={!hasKind(k.key)}
-              title={!hasKind(k.key) ? 'Ce type d’exercice n’existe pas pour la sélection' : undefined}
               onClick={() => setDrillKinds(flip(drillKinds, k.key) as CardKind[])}
             >
               {k.label}
@@ -177,102 +202,102 @@ export default function App() {
           ))}
         </div>
 
-        <button className="secondary" disabled={matching === 0} onClick={() => setScreen('practice')}>
+        <button className="secondary wide" disabled={matching === 0} onClick={() => setScreen('practice')}>
           {matching === 0
             ? 'Aucune carte ne correspond'
             : 'S’entraîner — ' + matching + (matching > 1 ? ' cartes' : ' carte')}
         </button>
       </section>
 
-      <section className="deck">
-        <h2>Le paquet</h2>
-        <p className="hint">
-          {counts
-            ? summary || 'Paquet vide. Choisis ce que tu veux apprendre ci-dessous, puis ajoute-le.'
-            : '…'}
-        </p>
-        <p className="hint">
-          Deux cartes par caractère : un kana se lit et se reconnaît, un kanji se traduit et se lit.
-        </p>
+      <details className="panel manage">
+        <summary>
+          <span>Gérer le paquet</span>
+          <small>{summary || 'paquet vide'}</small>
+        </summary>
 
-        <h3>Kana</h3>
-        <div className="picker">
-          {SCRIPTS.map(s => (
-            <button
-              key={s.key}
-              className={scripts.includes(s.key) ? 'chip on' : 'chip'}
-              onClick={() => setScripts(flip(scripts, s.key) as Script[])}
-            >
-              <span className="jp">{s.sample}</span>
-              {s.label}
-            </button>
-          ))}
-        </div>
-        <div className="picker">
-          {KANA_GROUPS.map(g => (
-            <button
-              key={g.key}
-              className={kanaGroups.includes(g.key) ? 'chip on' : 'chip'}
-              onClick={() => setKanaGroups(flip(kanaGroups, g.key))}
-            >
-              {g.label}
-              <small>{g.hint}</small>
-            </button>
-          ))}
-        </div>
-        <button
-          className="secondary"
-          disabled={busy !== '' || !scripts.length || !kanaGroups.length}
-          onClick={() => create('kana', { scripts, groups: kanaGroups })}
-        >
-          {busy === 'kana' ? 'Création…' : 'Ajouter ces kana'}
-        </button>
+        <div className="body">
+          <h3>Kana</h3>
+          <div className="picker">
+            {SCRIPTS.map(s => (
+              <button
+                key={s.key}
+                className={scripts.includes(s.key) ? 'chip on' : 'chip'}
+                onClick={() => setScripts(flip(scripts, s.key) as Script[])}
+              >
+                <span className="jp">{s.sample}</span>
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="picker">
+            {KANA_GROUPS.map(g => (
+              <button
+                key={g.key}
+                className={kanaGroups.includes(g.key) ? 'chip on' : 'chip'}
+                onClick={() => setKanaGroups(flip(kanaGroups, g.key))}
+              >
+                {g.label}
+                <small>{g.hint}</small>
+              </button>
+            ))}
+          </div>
+          <button
+            className="secondary"
+            disabled={busy !== '' || !scripts.length || !kanaGroups.length}
+            onClick={() => create('kana', { scripts, groups: kanaGroups })}
+          >
+            {busy === 'kana' ? 'Ajout…' : 'Ajouter ces kana'}
+          </button>
 
-        <h3>Kanji</h3>
-        <p className="hint">2 136 kanji jōyō, les plus courants d’abord. Sens en français, lectures on et kun.</p>
-        <div className="picker">
-          {KANJI_GROUPS.map(g => (
-            <button
-              key={g.key}
-              className={kanjiGroups.includes(g.key) ? 'chip on' : 'chip'}
-              onClick={() => setKanjiGroups(flip(kanjiGroups, g.key))}
-            >
-              {g.label}
-              <small>{g.hint}</small>
-            </button>
-          ))}
-        </div>
-        <button
-          className="secondary"
-          disabled={busy !== '' || !kanjiGroups.length}
-          onClick={() => create('kanji', { scripts: ['kanji'], groups: kanjiGroups })}
-        >
-          {busy === 'kanji' ? 'Création…' : 'Ajouter ces kanji'}
-        </button>
+          <h3>Kanji</h3>
+          <p className="hint">2 136 jōyō, les plus courants d’abord. Sens en français, lectures on et kun.</p>
+          <div className="picker">
+            {KANJI_GROUPS.map(g => (
+              <button
+                key={g.key}
+                className={kanjiGroups.includes(g.key) ? 'chip on' : 'chip'}
+                onClick={() => setKanjiGroups(flip(kanjiGroups, g.key))}
+              >
+                {g.label}
+                <small>{g.hint}</small>
+              </button>
+            ))}
+          </div>
+          <button
+            className="secondary"
+            disabled={busy !== '' || !kanjiGroups.length}
+            onClick={() => create('kanji', { scripts: ['kanji'], groups: kanjiGroups })}
+          >
+            {busy === 'kanji' ? 'Ajout…' : 'Ajouter ces kanji'}
+          </button>
 
-        <h3>Rythme</h3>
-        <label className="setting">
-          <span>Nouvelles cartes par jour</span>
-          <input
-            type="number"
-            min={0}
-            max={500}
-            value={cap}
-            onChange={e => setCap(e.target.value)}
-            onBlur={commitCap}
-            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
-          />
-        </label>
-        <p className="hint">
-          Ce plafond ne concerne que les cartes jamais vues. Les révisions dues arrivent
-          toujours en totalité — c’est ce qui empêche la dette de s’accumuler sans que tu le voies.
-        </p>
-      </section>
+          <h3>Rythme</h3>
+          <label className="setting">
+            <span>Nouvelles cartes par jour</span>
+            <input
+              type="number"
+              min={0}
+              max={500}
+              value={cap}
+              onChange={e => setCap(e.target.value)}
+              onBlur={commitCap}
+              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            />
+          </label>
+          <p className="hint">
+            Ne concerne que les cartes jamais vues, et se répartit entre les écritures
+            présentes dans ton paquet. Les révisions dues arrivent toujours en totalité.
+          </p>
+        </div>
+      </details>
 
       <footer className="credits">
-        Données kanji :{' '}
-        <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noreferrer">KANJIDIC2</a>,
-        Electronic Dictionary Research and Development Group, licence CC BY-SA.
+        <span className="mono">Kotoba {VERSION}</span>
+        <span>
+          Données kanji :{' '}
+          <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project" target="_blank" rel="noreferrer">KANJIDIC2</a>,
+          Electronic Dictionary Research and Development Group, licence CC BY-SA.
+        </span>
       </footer>
     </main>
   )
