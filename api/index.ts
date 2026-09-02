@@ -260,7 +260,11 @@ api.post('/review', async c => {
     )
   ])
 
-  return c.json({ due: card.due.toISOString(), interval: label(card.due, now) })
+  return c.json({
+    due: card.due.toISOString(),
+    interval: label(card.due, now),
+    previews: previews(card, now)
+  })
 })
 
 api.post('/settings', async c => {

@@ -4,6 +4,16 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.5.1 — 22 aout 2026
+
+- **Correction** : une carte ratee ne revenait jamais dans la seance en cours. La file
+  etait chargee une seule fois au demarrage, donc « revoir dans 1 min » ne se produisait
+  qu'a la seance suivante. Une carte replanifiee a moins de 20 minutes est desormais
+  reinseree quatre cartes plus loin, jusqu'a quatre fois par seance.
+- Consequence visible : une seance presente plus de cartes qu'annonce au depart. C'est
+  normal — une carte neuve demande deux « Bon » pour passer des paliers en minutes
+  (1 / 6 / 10 min) aux intervalles en jours.
+
 ## 0.5.0 — 22 aout 2026
 
 - Mise en page sur deux colonnes a partir de 900 px de large : l'action du jour et

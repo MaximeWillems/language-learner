@@ -62,4 +62,5 @@ export interface ReviewRequest {
 export interface ReviewResponse {
   due: string
   interval: string
+  previews: Record<Rating, string>
 }

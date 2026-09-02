@@ -29,6 +29,13 @@ function isRight(c: QueueCard, answer: string): boolean {
 
 const BATCH = 30
 
+// Une carte replanifiee a moins de 20 min appartient encore a cette seance : FSRS fait
+// repasser les cartes neuves et ratees par des paliers en minutes. Sans reinsertion,
+// « revoir dans 1 min » ne se produisait jamais avant la seance suivante.
+const HORIZON = 20 * 60 * 1000
+const GAP = 4
+const MAX_REPEATS = 4
+
 type Props = { mode: 'review' | 'practice'; filters: PracticeRequest; onDone: () => void }
 
 export default function Review({ mode, filters, onDone }: Props) {
@@ -43,6 +50,7 @@ export default function Review({ mode, filters, onDone }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const box = useRef<HTMLInputElement>(null)
+  const repeats = useRef(new Map<number, number>())
 
   const fetchBatch = () => (practice ? getPractice(filters, BATCH) : getQueue(BATCH))
 
@@ -79,11 +87,28 @@ export default function Review({ mode, filters, onDone }: Props) {
   }
 
   const rate = async (r: Rating) => {
-    if (!card || !revealed || sending) return
+    if (!card || !revealed || sending || !cards) return
     setSending(true)
     try {
-      await sendReview({ cardId: card.id, rating: r, answer: input || null, correct })
-      await advance()
+      const res = await sendReview({ cardId: card.id, rating: r, answer: input || null, correct })
+      const shown = (repeats.current.get(card.id) ?? 0) + 1
+      repeats.current.set(card.id, shown)
+
+      const soon = new Date(res.due).getTime() - Date.now() < HORIZON
+      if (soon && shown <= MAX_REPEATS) {
+        const list = [...cards]
+        list.splice(Math.min(i + 1 + GAP, list.length), 0, {
+          ...card,
+          isNew: false,
+          previews: res.previews
+        })
+        setCards(list)
+      }
+
+      setInput('')
+      setRevealed(false)
+      setSeen(seen + 1)
+      setI(i + 1)
     } catch (e) {
       setError(String(e))
     } finally {
