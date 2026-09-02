@@ -21,6 +21,7 @@ export interface QueueCard {
   translation: string
   words: string[]
   blank: number
+  lapses: number
 }
 
 export interface DeckSlice {
@@ -31,8 +32,38 @@ export interface DeckSlice {
   fresh: number
 }
 
+/** Seuil FSRS d'echec repete. Anki en utilise 8 ; 6 laisse moins pourrir la carte. */
+export const LEECH = 6
+
+export type CardAction = 'suspend' | 'unsuspend' | 'reset'
+
+export interface CardIssue {
+  id: number
+  kind: CardKind
+  script: Script
+  text: string
+  translation: string
+  lapses: number
+  reps: number
+  suspended: boolean
+  due: string
+  answered: number
+  right: number
+}
+
+export interface Review {
+  reviewedAt: string
+  rating: number
+  correct: boolean | null
+  answer: string | null
+  scheduledDays: number
+  mode: string
+}
+
 export interface Counts {
   deck: DeckSlice[]
+  hard: number
+  suspended: number
   cards: number
   dueNow: number
   newAvailable: number

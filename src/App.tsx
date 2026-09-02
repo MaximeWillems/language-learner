@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { CardKind, Counts, DeckRequest, PracticeRequest, Script } from '../shared/types'
+import type { CardAction, CardIssue, CardKind, Counts, DeckRequest, PracticeRequest, Review as Log, Script } from '../shared/types'
 import { VERSION } from '../shared/version'
-import { buildDeck, getCounts, getVersion, saveSettings } from './api'
+import { buildDeck, cardAction, getCounts, getHardCards, getHistory, getVersion, saveSettings } from './api'
 import Review from './Review'
 
 const SCRIPTS: { key: Script; label: string; sample: string }[] = [
@@ -58,6 +58,15 @@ const TRACKS: { key: string; label: string; action: string; scripts: Script[] }[
   { key: 'sentences', label: 'Phrases', action: 'Réviser les phrases', scripts: ['sentence'] }
 ]
 
+const KIND_LABEL: Record<CardKind, string> = {
+  reading: 'lecture',
+  recall: 'reconnaissance',
+  meaning: 'sens',
+  cloze: 'texte à trous'
+}
+
+const RATING_LABEL: Record<number, string> = { 1: 'raté', 2: 'dur', 3: 'bon', 4: 'facile' }
+
 const flip = (list: string[], v: string) =>
   list.includes(v) ? list.filter(x => x !== v) : [...list, v]
 
@@ -73,6 +82,8 @@ export default function App() {
   const [drillKinds, setDrillKinds] = useState<CardKind[]>([])
   const [cap, setCap] = useState('20')
   const [session, setSession] = useState<PracticeRequest>({ scripts: [], groups: [], kinds: [] })
+  const [issues, setIssues] = useState<CardIssue[] | null>(null)
+  const [history, setHistory] = useState<Record<number, Log[]>>({})
   const [busy, setBusy] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -110,7 +121,34 @@ export default function App() {
     }
   }
 
-  const back = () => { setScreen('home'); refresh() }
+  const loadIssues = () => {
+    setIssues(null)
+    getHardCards().then(setIssues).catch(e => setError(String(e)))
+  }
+
+  const runAction = async (id: number, action: CardAction) => {
+    try {
+      setCounts(await cardAction(id, action))
+      loadIssues()
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const toggleHistory = async (id: number) => {
+    if (history[id]) {
+      setHistory(h => { const n = { ...h }; delete n[id]; return n })
+      return
+    }
+    try {
+      const rows = await getHistory(id)
+      setHistory(h => ({ ...h, [id]: rows }))
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const back = () => { setScreen('home'); refresh(); setIssues(null) }
 
   const deck = counts?.deck ?? []
   const total = (rows: typeof deck) => rows.reduce((a, d) => a + d.n, 0)
@@ -241,6 +279,66 @@ export default function App() {
             : 'S’entraîner — ' + matching + (matching > 1 ? ' cartes' : ' carte')}
         </button>
       </section>
+
+      {counts && (counts.hard > 0 || counts.suspended > 0) && (
+        <details className="panel manage" onToggle={e => { if (e.currentTarget.open) loadIssues() }}>
+          <summary>
+            <span>Cartes à problème</span>
+            <small>
+              {counts.hard > 0 && `${counts.hard} difficile${counts.hard > 1 ? 's' : ''}`}
+              {counts.hard > 0 && counts.suspended > 0 && ' · '}
+              {counts.suspended > 0 && `${counts.suspended} de côté`}
+            </small>
+          </summary>
+          <div className="body">
+            <p className="hint">
+              Une carte oubliée six fois ou plus ne s’ancre pas en la répétant davantage.
+              Mets-la de côté, ou repars de zéro pour la réapprendre comme une nouveauté.
+            </p>
+            {issues === null ? (
+              <p className="hint">Chargement…</p>
+            ) : issues.length === 0 ? (
+              <p className="hint">Rien à signaler.</p>
+            ) : (
+              <ul className="issues">
+                {issues.map(c => (
+                  <li className={c.suspended ? 'issue off' : 'issue'} key={c.id}>
+                    <span className={c.script === 'sentence' ? 'jp phrase-mini' : 'jp'}>{c.text}</span>
+                    <span className="meta mono">
+                      {KIND_LABEL[c.kind]}
+                      {c.lapses > 0 && ` · ${c.lapses} oubli${c.lapses > 1 ? 's' : ''}`}
+                      {c.answered > 0 && ` · ${c.right}/${c.answered} justes`}
+                      {c.suspended && ' · de côté'}
+                    </span>
+                    <span className="acts">
+                      <button className="link" onClick={() => runAction(c.id, c.suspended ? 'unsuspend' : 'suspend')}>
+                        {c.suspended ? 'Réactiver' : 'Mettre de côté'}
+                      </button>
+                      <button className="link" onClick={() => runAction(c.id, 'reset')}>Repartir de zéro</button>
+                      <button className="link" onClick={() => toggleHistory(c.id)}>
+                        {history[c.id] ? 'Masquer' : 'Historique'}
+                      </button>
+                    </span>
+                    {history[c.id] && (
+                      <ol className="log mono">
+                        {history[c.id].length === 0 && <li>aucune révision enregistrée</li>}
+                        {history[c.id].map((h, n) => (
+                          <li key={n}>
+                            {new Date(h.reviewedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                            {' · '}{RATING_LABEL[h.rating] ?? h.rating}
+                            {h.mode === 'practice' && ' · entraînement'}
+                            {h.answer && ` · « ${h.answer} »`}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
+      )}
 
       <details className="panel manage">
         <summary>

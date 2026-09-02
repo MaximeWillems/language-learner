@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Grade } from 'ts-fsrs'
-import type { Counts, DeckRequest, QueueCard, Script } from '../shared/types'
+import type { CardAction, CardKind, Counts, DeckRequest, QueueCard, Script } from '../shared/types'
+import { LEECH } from '../shared/types'
 import { VERSION } from '../shared/version'
 import { apply, blank, fromRow, label, previews, type CardRow } from './srs'
 
@@ -86,7 +87,9 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
     db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=0 AND state=0`).bind(u, LANG),
     db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND introduced_at>=?`).bind(u, LANG, day),
     db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND state<>0`).bind(u, LANG),
-    db.prepare(`SELECT COUNT(*) n FROM review_log l JOIN card c ON c.id=l.card_id WHERE c.user_id=? AND l.reviewed_at>=?`).bind(u, day)
+    db.prepare(`SELECT COUNT(*) n FROM review_log l JOIN card c ON c.id=l.card_id WHERE c.user_id=? AND l.reviewed_at>=?`).bind(u, day),
+    db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=0 AND lapses>=?`).bind(u, LANG, LEECH),
+    db.prepare(`SELECT COUNT(*) n FROM card WHERE user_id=? AND lang=? AND suspended=1`).bind(u, LANG)
   ])
   const n = (i: number) => res[i].results[0]?.n ?? 0
 
@@ -107,7 +110,9 @@ async function counts(db: D1Database, u: string): Promise<Counts> {
     newPerDay: cap,
     newLeftToday: Math.max(0, cap - n(3)),
     learned: n(4),
-    reviewsToday: n(5)
+    reviewsToday: n(5),
+    hard: n(6),
+    suspended: n(7)
   }
 }
 
@@ -188,7 +193,8 @@ function toCard(row: Row, p: Pools, now: Date): QueueCard {
     strokes: row.strokes,
     translation: row.translation ?? '',
     words,
-    blank
+    blank,
+    lapses: row.lapses
   }
 }
 
@@ -432,6 +438,100 @@ api.post('/practice/log', async c => {
   ).run()
 
   return c.json({ ok: true })
+})
+
+// --- cartes a probleme : ratees en boucle, ou mises de cote ---
+
+api.get('/cards/hard', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+
+  const rows = (await c.env.DB.prepare(
+    `SELECT id, kind, script, text, translation, lapses, reps, suspended, due
+       FROM card_item
+      WHERE user_id = ? AND lang = ? AND (lapses >= ? OR suspended = 1)
+      ORDER BY suspended, lapses DESC, reps DESC
+      LIMIT 80`
+  ).bind(u, LANG, LEECH).all<{
+    id: number; kind: CardKind; script: Script; text: string; translation: string | null
+    lapses: number; reps: number; suspended: number; due: string
+  }>()).results
+
+  const stats = new Map<number, { n: number; ok: number }>()
+  if (rows.length) {
+    const ids = rows.map(r => r.id)
+    const res = await c.env.DB.prepare(
+      `SELECT card_id, COUNT(*) AS n, SUM(COALESCE(correct, 0)) AS ok
+         FROM review_log
+        WHERE mode = 'review' AND card_id IN (${ph(ids.length)})
+        GROUP BY card_id`
+    ).bind(...ids).all<{ card_id: number; n: number; ok: number }>()
+    for (const r of res.results) stats.set(r.card_id, { n: r.n, ok: r.ok })
+  }
+
+  return c.json(rows.map(r => ({
+    id: r.id,
+    kind: r.kind,
+    script: r.script,
+    text: r.text,
+    translation: r.translation ?? '',
+    lapses: r.lapses,
+    reps: r.reps,
+    suspended: r.suspended === 1,
+    due: r.due,
+    answered: stats.get(r.id)?.n ?? 0,
+    right: stats.get(r.id)?.ok ?? 0
+  })))
+})
+
+api.get('/cards/:id/history', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const id = Number(c.req.param('id'))
+
+  const own = await c.env.DB.prepare(`SELECT 1 AS ok FROM card WHERE id=? AND user_id=?`)
+    .bind(id, u).first<{ ok: number }>()
+  if (!own) return c.json({ error: 'carte introuvable' }, 404)
+
+  const rows = await c.env.DB.prepare(
+    `SELECT reviewed_at, rating, correct, answer, scheduled_days, mode
+       FROM review_log WHERE card_id = ? ORDER BY reviewed_at DESC LIMIT 30`
+  ).bind(id).all<{
+    reviewed_at: string; rating: number; correct: number | null
+    answer: string | null; scheduled_days: number; mode: string
+  }>()
+
+  return c.json(rows.results.map(r => ({
+    reviewedAt: r.reviewed_at,
+    rating: r.rating,
+    correct: r.correct === null ? null : r.correct === 1,
+    answer: r.answer,
+    scheduledDays: r.scheduled_days,
+    mode: r.mode
+  })))
+})
+
+api.post('/cards/:id/action', async c => {
+  const u = who(c.req.header('Cf-Access-Authenticated-User-Email'))
+  const id = Number(c.req.param('id'))
+  const { action } = await c.req.json<{ action: CardAction }>()
+  const now = new Date().toISOString()
+
+  if (action === 'suspend' || action === 'unsuspend') {
+    await c.env.DB.prepare(`UPDATE card SET suspended = ? WHERE id = ? AND user_id = ?`)
+      .bind(action === 'suspend' ? 1 : 0, id, u).run()
+  } else if (action === 'reset') {
+    // On efface la planification mais on garde l'historique : c'est lui qui dit que
+    // la carte a deja pose probleme.
+    await c.env.DB.prepare(
+      `UPDATE card SET state = 0, stability = 0, difficulty = 0, elapsed_days = 0,
+              scheduled_days = 0, learning_steps = 0, reps = 0, lapses = 0,
+              last_review = NULL, introduced_at = NULL, suspended = 0, due = ?
+        WHERE id = ? AND user_id = ?`
+    ).bind(now, id, u).run()
+  } else {
+    return c.json({ error: 'action inconnue' }, 400)
+  }
+
+  return c.json(await counts(c.env.DB, u))
 })
 
 const app = new Hono<Env>()

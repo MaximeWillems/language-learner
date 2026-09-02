@@ -4,6 +4,18 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.7.0 — 22 aout 2026
+
+- **Cartes a problème.** Une carte oubliee six fois ou plus est signalee pendant la
+  seance et regroupee dans un panneau dedie, avec son nombre d'oublis et son taux de
+  reussite reel.
+- Trois actions, depuis la seance ou depuis le panneau : **mettre de cote** (la carte
+  sort de la file sans disparaitre), **remettre a zero** (planification effacee, la
+  carte redevient une nouveaute), **reactiver**.
+- **Historique par carte** : les trente dernieres reponses, avec la note, ce qui a ete
+  tape, et si la reponse venait d'une revision ou d'un entrainement.
+- L'historique survit a la remise a zero : c'est lui qui garde la trace du probleme.
+
 ## 0.6.1 — 22 aout 2026
 
 - **Deux parcours separes** au lieu d'une seule seance melangee : « Caracteres » et

@@ -1,4 +1,7 @@
-import type { Counts, DeckRequest, PracticeRequest, QueueResponse, Rating, ReviewResponse } from '../shared/types'
+import type {
+  CardAction, CardIssue, Counts, DeckRequest, PracticeRequest,
+  QueueResponse, Rating, Review, ReviewResponse
+} from '../shared/types'
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, init)
@@ -35,3 +38,8 @@ export const logPractice = (body: { cardId: number; answer: string | null; corre
 export const saveSettings = (newPerDay: number) => post<Counts>('/api/settings', { newPerDay })
 
 export const getVersion = () => call<{ version: string }>('/api/version')
+
+export const getHardCards = () => call<CardIssue[]>('/api/cards/hard')
+export const getHistory = (id: number) => call<Review[]>(`/api/cards/${id}/history`)
+export const cardAction = (id: number, action: CardAction) =>
+  post<Counts>(`/api/cards/${id}/action`, { action })

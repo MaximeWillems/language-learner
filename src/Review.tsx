@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { matchesAnyReading, matchesKana } from '../shared/normalize'
-import type { PracticeRequest, QueueCard, Rating } from '../shared/types'
-import { getPractice, getQueue, logPractice, sendReview } from './api'
+import type { CardAction, PracticeRequest, QueueCard, Rating } from '../shared/types'
+import { LEECH } from '../shared/types'
+import { cardAction, getPractice, getQueue, logPractice, sendReview } from './api'
 
 const RATINGS: { v: Rating; label: string }[] = [
   { v: 1, label: 'Encore' },
@@ -130,6 +131,24 @@ export default function Review({ mode, filters, onDone }: {
     }
   }
 
+  // Suspendre ou reinitialiser depuis la seance : c'est la, en butant dessus, qu'on
+  // se rend compte qu'une carte ne passe pas.
+  const act = async (action: CardAction) => {
+    if (!card || sending || !cards) return
+    setSending(true)
+    try {
+      await cardAction(card.id, action)
+      setCards(cards.filter((x, n) => n <= i || x.id !== card.id))
+      setInput('')
+      setRevealed(false)
+      setI(i + 1)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setSending(false)
+    }
+  }
+
   const suggested: Rating = correct ? 3 : 1
 
   useEffect(() => {
@@ -192,6 +211,9 @@ export default function Review({ mode, filters, onDone }: {
 
       <div className={sentence ? 'card sentence' : 'card'}>
         {!practice && card.isNew && <span className="badge">nouvelle</span>}
+        {!practice && !card.isNew && card.lapses >= LEECH && (
+          <span className="badge leech">{card.lapses} oublis</span>
+        )}
         {card.strokes !== null && <span className="strokes mono">{card.strokes} traits</span>}
 
         <span className="prompt-label">{PROMPTS[card.kind + ':' + card.script] ?? 'À toi'}</span>
@@ -302,6 +324,13 @@ export default function Review({ mode, filters, onDone }: {
           ))}
         </div>
       ))}
+
+      {revealed && !practice && (
+        <div className="cardacts">
+          <button className="link" disabled={sending} onClick={() => act('suspend')}>Mettre de côté</button>
+          <button className="link" disabled={sending} onClick={() => act('reset')}>Repartir de zéro</button>
+        </div>
+      )}
 
       {!revealed && form === 'typed' && <p className="hint">Entrée pour valider</p>}
     </main>

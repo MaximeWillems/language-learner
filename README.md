@@ -81,6 +81,14 @@ affiche avant de choisir. Plafond de 20 nouvelles cartes par jour, revisions et
 nouveautes melangees. Chaque reponse est journalisee dans `review_log` : c'est cette
 table qui permettra plus tard de reentrainer les parametres sur ton propre historique.
 
+**Gestion des cartes** — une carte oubliee six fois ou plus (`lapses`, le compteur
+FSRS) est signalee comme difficile. Depuis la seance ou depuis le panneau « Cartes a
+problème », on peut la **mettre de cote** (elle sort de la file sans etre supprimee) ou
+la **remettre a zero** (la planification est effacee, la carte redevient une nouveaute).
+L'historique des reponses est conserve dans les deux cas : c'est lui qui garde la trace
+du probleme. Repeter davantage une carte qui ne passe pas ne sert a rien — c'est le
+seul cas ou la repetition espacee ne peut rien.
+
 **Les reponses acceptees** — romaji Hepburn ou kunrei (`shi` = `si`, `tsu` = `tu`),
 saisie directe en kana, hiragana pour un katakana, majuscules et espaces ignores.
 Pour un kanji, n'importe laquelle de ses lectures on ou kun, avec ou sans l'okurigana
