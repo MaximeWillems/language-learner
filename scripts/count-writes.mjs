@@ -7,8 +7,17 @@
 //     laisse inchange apres une instruction qui ne modifie rien : lire ce compteur apres
 //     un CREATE TABLE recompte la precedente.
 
-export const isWrite = sql =>
-  /^(insert|update|delete|replace)/i.test(sql.replace(/^(?:\s+|--.*$)*/m, '').trimStart())
+const HEAD = /^(?:\s+|--.*$)*/m
+
+/**
+ * Une instruction ecrit-elle ? On regarde son premier mot-cle — mais une instruction
+ * peut commencer par WITH et se terminer par un UPDATE, auquel cas elle ecrit bel et bien.
+ */
+export function isWrite(sql) {
+  const body = sql.replace(HEAD, '').trimStart()
+  if (/^(insert|update|delete|replace)/i.test(body)) return true
+  return /^with\b/i.test(body) && /\b(insert|update|delete)\s/i.test(body)
+}
 
 export function countWrites(db, sql) {
   let written = 0

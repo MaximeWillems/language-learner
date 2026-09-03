@@ -4,6 +4,29 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.11.1 — 2 septembre 2026
+
+- **Les phrases etaient trop dures.** Le classement bornait le niveau scolaire des kanji
+  mais pas leur nombre : une phrase de « niveau 1 » pouvait en contenir huit. Les 6 000
+  phrases sont reclassees sur une mesure qui tient compte de tout ce qui rend une phrase
+  difficile — kanji distincts, niveau scolaire, longueur, rarete du mot le plus rare.
+  Le niveau 1 plafonne desormais a cinq kanji distincts, et commence par
+  それはテレビだよ。 plutot que par une tournure en なくても.
+- Le rang de difficulte sert aussi d'ordre d'introduction : a l'interieur d'un niveau,
+  les plus simples arrivent en premier.
+- **Correction** : terminer une lecon creait deux cartes par mot sans regarder son
+  ecriture, dont une carte de lecture pour un mot en kana — ou la reponse est deja
+  affichee dans la question.
+- **Correction** : le tirage des mauvaises reponses pouvait rendre trois choix au lieu
+  de quatre, de facon intermittente, quand le vivier etait petit. Remplace par un
+  melange partiel, qui rend toujours ce qu'on demande.
+- **Correction** : le compteur de budget ignorait les instructions commencant par `WITH`,
+  qui ecrivent pourtant. Troisieme erreur du meme outil, troisieme test.
+- Le parcours guide a enfin des tests : couverture d'une lecon, ajout limite a ce qui a
+  ete coche, marquage « deja connu » qui n'ajoute rien, et une verification que rien
+  dans le schema ne permet de verrouiller une lecon derriere une autre.
+- 70 tests.
+
 ## 0.11.0 — 2 septembre 2026
 
 **Le vocabulaire.** La table des mots existait depuis la 0.6.0 mais etait vide de sens :

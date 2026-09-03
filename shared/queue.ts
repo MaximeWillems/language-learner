@@ -13,16 +13,21 @@ export const HAS_KANJI = /[一-龯]/
 
 /**
  * Tire n valeurs distinctes au hasard, en ignorant celles que `skip` rejette.
- * La garde evite une boucle infinie quand le vivier est trop petit ou trop filtre.
+ *
+ * Melange partiel plutot que tirage avec rejet : ce dernier pouvait rendre moins de
+ * valeurs que demande quand le vivier etait petit ou tres filtre, et donc afficher un
+ * QCM a trois choix au lieu de quatre, de facon intermittente.
  */
 export function pick<T>(from: T[], n: number, skip: (v: T) => boolean): T[] {
-  const out = new Set<T>()
-  let guard = 0
-  while (out.size < n && guard++ < from.length * 4) {
-    const v = from[Math.floor(Math.random() * from.length)]
-    if (v !== undefined && !skip(v)) out.add(v)
+  const eligible = [...new Set(from)].filter(v => !skip(v))
+  const take = Math.min(n, eligible.length)
+  for (let i = 0; i < take; i++) {
+    const j = i + Math.floor(Math.random() * (eligible.length - i))
+    const tmp = eligible[i]
+    eligible[i] = eligible[j]
+    eligible[j] = tmp
   }
-  return [...out]
+  return eligible.slice(0, take)
 }
 
 /**

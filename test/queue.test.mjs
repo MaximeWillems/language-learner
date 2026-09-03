@@ -59,9 +59,18 @@ test('pick ne boucle pas quand le vivier est entierement filtre', () => {
   assert.deepEqual(out, [])
 })
 
-test('pick rend des valeurs distinctes et respecte le filtre', () => {
-  const out = pick([1, 2, 3, 4, 5], 3, v => v === 5)
-  assert.equal(out.length, 3)
-  assert.equal(new Set(out).size, 3)
-  assert.ok(!out.includes(5))
+test('pick rend toujours autant de valeurs qu il peut', () => {
+  // Le tirage avec rejet en rendait parfois moins, donc un QCM a trois choix.
+  for (let run = 0; run < 200; run++) {
+    const out = pick([1, 2, 3, 4, 5], 3, v => v === 5)
+    assert.equal(out.length, 3)
+    assert.equal(new Set(out).size, 3)
+    assert.ok(!out.includes(5))
+  }
+})
+
+test('pick rend ce qui reste quand le vivier est plus petit que demande', () => {
+  assert.equal(pick([1, 2], 4, () => false).length, 2)
+  assert.equal(pick([1, 1, 1], 3, () => false).length, 1, 'les doublons ne comptent qu une fois')
+  assert.deepEqual(pick([1, 2, 3], 2, () => true), [])
 })

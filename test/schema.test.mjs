@@ -86,3 +86,59 @@ test('le cours tient debout', async () => {
      WHERE NOT EXISTS (SELECT 1 FROM lesson l WHERE l.id = li.lesson_id)`).n
   assert.equal(orphans, 0)
 })
+
+test('le niveau 1 des phrases est reellement abordable', async () => {
+  // Le classement initial bornait le niveau scolaire des kanji mais pas leur nombre :
+  // une phrase de « niveau 1 » pouvait en contenir huit, et c'etait trop dur.
+  const db = await freshDb()
+  const hard = one(db, `
+    SELECT COUNT(*) AS n FROM sentence s
+     WHERE s.level = 1
+       AND (SELECT COUNT(DISTINCT c.id)
+              FROM sentence_word sw
+              JOIN word_character wc ON wc.word_id = sw.word_id
+              JOIN character c ON c.id = wc.character_id
+             WHERE sw.sentence_id = s.id) > 5`).n
+  assert.equal(hard, 0, `${hard} phrases de niveau 1 depassent 5 kanji distincts`)
+
+  // Une phrase longue mais presque sans kanji reste abordable : c'est le score qui
+  // tranche, pas la longueur seule. On borne quand meme les cas extremes.
+  const long = one(db, `
+    SELECT COUNT(*) AS n FROM sentence s
+     WHERE s.level = 1
+       AND (SELECT COUNT(*) FROM sentence_word sw WHERE sw.sentence_id = s.id) > 10`).n
+  assert.equal(long, 0, `${long} phrases de niveau 1 depassent 10 mots`)
+})
+
+test('la difficulte croit d un niveau au suivant', async () => {
+  const db = await freshDb()
+  const avg = rows(db, `
+    SELECT s.level AS level,
+           AVG((SELECT COUNT(DISTINCT c.id)
+                  FROM sentence_word sw
+                  JOIN word_character wc ON wc.word_id = sw.word_id
+                  JOIN character c ON c.id = wc.character_id
+                 WHERE sw.sentence_id = s.id)) AS kanji
+      FROM sentence s GROUP BY s.level ORDER BY s.level`)
+  for (let i = 1; i < avg.length; i++) {
+    assert.ok(avg[i].kanji > avg[i - 1].kanji,
+      `niveau ${avg[i].level} pas plus dur que le precedent`)
+  }
+})
+
+test('les phrases sont servies de la plus simple a la plus complexe', async () => {
+  const db = await freshDb()
+  assert.equal(one(db, 'SELECT COUNT(DISTINCT rank) AS n FROM sentence').n, 6000,
+    'le rang doit etre unique, sinon l ordre d introduction est instable')
+
+  const first = rows(db, `
+    SELECT s.text,
+           (SELECT COUNT(DISTINCT c.id)
+              FROM sentence_word sw
+              JOIN word_character wc ON wc.word_id = sw.word_id
+              JOIN character c ON c.id = wc.character_id
+             WHERE sw.sentence_id = s.id) AS kanji
+      FROM sentence s ORDER BY s.rank LIMIT 20`)
+  const avgFirst = first.reduce((a, r) => a + r.kanji, 0) / first.length
+  assert.ok(avgFirst <= 2, `les 20 premieres phrases portent ${avgFirst.toFixed(1)} kanji en moyenne`)
+})

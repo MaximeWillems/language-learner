@@ -264,7 +264,14 @@ en consomment beaucoup :
   par element selectionne. Corrige en 0.9.1 — les cartes naissent a l'introduction.
 
 `npm run budget` chiffre chaque migration et echoue si recreer la base de zero
-depasserait le quota. Aujourd'hui : 55 554 lignes, soit 56 % d'une journee.
+depasserait le quota. Aujourd'hui : 61 554 lignes, soit 62 % d'une journee.
+
+**Un depassement de quota bloque aussi la publication du code.** La commande de
+deploiement enchaine `d1 migrations apply --remote && wrangler deploy` : si les
+migrations echouent faute de quota, le `&&` empeche la publication et le Worker reste
+sur sa version precedente. C'est le comportement correct — publier du code qui attend
+un schema absent casserait l'application — mais il faut savoir le lire : une
+fonctionnalite qui « n'apparait pas » peut simplement n'avoir jamais ete deployee.
 
 Le compteur s'est trompe deux fois avant d'etre juste, et les deux pieges valent d'etre
 connus : compter la difference de `COUNT(*)` rate les migrations qui ne font que des

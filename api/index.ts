@@ -567,9 +567,17 @@ api.post('/lesson/:id/complete', async c => {
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   )
   const stmts = []
-  for (const w of b.words ?? []) {
-    for (const kind of ['meaning', 'reading']) {
-      stmts.push(insert.bind(u, LANG, 'word', w, kind, due, now.toISOString()))
+  if ((b.words ?? []).length) {
+    // les cartes creees doivent dependre de l'ecriture du mot, comme ailleurs :
+    // demander la lecture d'un mot en kana revient a recopier ce qui est affiche
+    const lemmas = await c.env.DB.prepare(
+      `SELECT id, lemma FROM word WHERE id IN (${ph(b.words!.length)})`
+    ).bind(...b.words!).all<{ id: number; lemma: string }>()
+    const byId = new Map(lemmas.results.map(r => [r.id, r.lemma]))
+    for (const w of b.words!) {
+      for (const kind of kindsFor('word', byId.get(w) ?? '')) {
+        stmts.push(insert.bind(u, LANG, 'word', w, kind, due, now.toISOString()))
+      }
     }
   }
   for (const s of b.sentences ?? []) {

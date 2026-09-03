@@ -103,3 +103,16 @@ test('isWrite ne se laisse pas prendre par une vue qui lit', () => {
   assert.equal(isWrite('  \n  insert into t values (1)'), true)
   assert.equal(isWrite('-- commentaire\nUPDATE t SET a = 1'), true)
 })
+
+test('le compteur voit une ecriture qui commence par WITH', async () => {
+  // Troisieme erreur du meme outil : un UPDATE precede de ses CTE lit comme un WITH.
+  const SQL = await initSqlJs()
+  const db = new SQL.Database()
+  db.run('CREATE TABLE t (id INTEGER PRIMARY KEY, v INTEGER)')
+  db.run('INSERT INTO t VALUES (1,1),(2,2),(3,3)')
+  assert.equal(isWrite('WITH x AS (SELECT 1 AS a) UPDATE t SET v = 9'), true)
+  assert.equal(isWrite('WITH x AS (SELECT 1 AS a) SELECT * FROM x'), false)
+  assert.equal(
+    countWrites(db, 'WITH x AS (SELECT id FROM t WHERE id <= 2) UPDATE t SET v = 9 WHERE id IN (SELECT id FROM x);'),
+    2)
+})
