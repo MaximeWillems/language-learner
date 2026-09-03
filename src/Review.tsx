@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { matchesAnyReading, matchesKana } from '../shared/normalize'
+import { matchesAnyReading, matchesKana, romajiOf } from '../shared/normalize'
 import type { CardAction, PracticeRequest, QueueCard, Rating } from '../shared/types'
 import { LEECH } from '../shared/types'
 import { cardAction, getPractice, getQueue, logPractice, sendReview } from './api'
@@ -30,6 +30,17 @@ const BATCH = 30
 const HORIZON = 20 * 60 * 1000
 const GAP = 4
 const MAX_REPEATS = 4
+
+/** Une lecture en kana, doublee de sa transcription : サン ne se prononce pas tout seul. */
+function Say({ kana }: { kana: string }) {
+  if (!kana) return null
+  return (
+    <span className="say">
+      <b className="jp">{kana}</b>
+      <i className="rom">{romajiOf(kana)}</i>
+    </span>
+  )
+}
 
 const answerOf = (c: QueueCard) =>
   c.kind === 'meaning' ? c.meanings[0] ?? ''
@@ -282,9 +293,11 @@ export default function Review({ mode, filters, onDone }: {
                 {card.kind === 'cloze' && (
                   <>
                     <span className="lectures jp">{card.text}</span>
-                    {card.blankGloss && (
-                      <span className="sens">
-                        <b className="jp">{card.words[card.blank]}</b> — {card.blankGloss}
+                    {(card.blankGloss || card.blankReading) && (
+                      <span className="sens gap-word">
+                        <b className="jp">{card.words[card.blank]}</b>
+                        {card.blankReading && <i className="rom">{romajiOf(card.blankReading)}</i>}
+                        {card.blankGloss && <span> — {card.blankGloss}</span>}
                       </span>
                     )}
                   </>
@@ -296,7 +309,7 @@ export default function Review({ mode, filters, onDone }: {
                   {card.meanings[0]}
                   {card.meaningLang === 'en' && <em> — sens en anglais, faute de traduction française</em>}
                 </span>
-                {card.reading && <span className="lectures"><b className="jp">{card.reading}</b></span>}
+                {card.reading && <div className="readings"><div className="row"><Say kana={card.reading} /></div></div>}
               </div>
             ) : card.script === 'kanji' ? (
               <div className="detail">
@@ -304,14 +317,24 @@ export default function Review({ mode, filters, onDone }: {
                   {card.meanings.join(', ')}
                   {card.meaningLang === 'en' && <em> — sens en anglais, pas de traduction française disponible</em>}
                 </span>
-                <span className="lectures">
-                  {card.onReadings.length > 0 && <span>on <b className="jp">{card.onReadings.join('・')}</b></span>}
-                  {card.kunReadings.length > 0 && <span>kun <b className="jp">{card.kunReadings.join('・')}</b></span>}
-                </span>
+                <div className="readings">
+                  {card.onReadings.length > 0 && (
+                    <div className="row">
+                      <span className="tagline">on</span>
+                      {card.onReadings.map(r => <Say key={r} kana={r} />)}
+                    </div>
+                  )}
+                  {card.kunReadings.length > 0 && (
+                    <div className="row">
+                      <span className="tagline">kun</span>
+                      {card.kunReadings.map(r => <Say key={r} kana={r} />)}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <span className="detail">
-                <span className="jp big">{card.text}</span> = {card.reading}
+                <span className="jp big">{card.text}</span> = <i className="rom">{card.reading}</i>
               </span>
             )}
 

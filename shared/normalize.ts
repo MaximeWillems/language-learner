@@ -1,4 +1,4 @@
-import { toHiragana } from 'wanakana'
+import { toHiragana, toRomaji } from 'wanakana'
 
 const romaji = (s: string) => s.trim().toLowerCase().replace(/\s+/g, '')
 
@@ -33,3 +33,11 @@ export function matchesAnyReading(input: string, readings: string[]): boolean {
   if (!typed) return false
   return readings.some(r => forms(r).some(f => f.length > 0 && toHiragana(f) === typed))
 }
+
+/**
+ * Transcription d'une lecture en romaji. Les lectures on s'ecrivent en katakana par
+ * convention, ce qui ne dit rien a qui ne les lit pas encore couramment : サン ne se
+ * prononce pas tout seul. Le point d'okurigana et le tiret de prefixe sont conserves,
+ * ils portent une information.
+ */
+export const romajiOf = (kana: string): string => (kana ? toRomaji(kana) : '')

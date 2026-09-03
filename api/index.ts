@@ -128,6 +128,7 @@ interface Pools {
   glosses: string[]
   words: Map<number, string[]>
   glossed: Map<number, string[]>
+  readings: Map<number, string[]>
   surfaces: string[]
 }
 
@@ -169,6 +170,7 @@ function toCard(row: Row, p: Pools, now: Date): QueueCard {
     words,
     blank,
     blankGloss: blank >= 0 ? (p.glossed.get(row.item_id)?.[blank] ?? '') : '',
+    blankReading: blank >= 0 ? (p.readings.get(row.item_id)?.[blank] ?? '') : '',
     lapses: row.lapses
   }
 }
@@ -195,11 +197,12 @@ async function buildPools(db: D1Database, rows: Row[]): Promise<Pools> {
   const ids = [...new Set(rows.filter(r => r.script === 'sentence').map(r => r.item_id))]
   const words = new Map<number, string[]>()
   const glossed = new Map<number, string[]>()
+  const readings = new Map<number, string[]>()
   let surfaces: string[] = []
 
   if (ids.length) {
     const res = await db.prepare(SENTENCE_WORDS.replace(':ids', ph(ids.length)))
-      .bind(...ids).all<{ sentence_id: number; surface: string; gloss: string }>()
+      .bind(...ids).all<{ sentence_id: number; surface: string; gloss: string; reading: string }>()
     for (const r of res.results) {
       const acc = words.get(r.sentence_id) ?? []
       acc.push(r.surface)
@@ -207,13 +210,16 @@ async function buildPools(db: D1Database, rows: Row[]): Promise<Pools> {
       const g = glossed.get(r.sentence_id) ?? []
       g.push(r.gloss ?? '')
       glossed.set(r.sentence_id, g)
+      const rd = readings.get(r.sentence_id) ?? []
+      rd.push(r.reading ?? '')
+      readings.set(r.sentence_id, rd)
     }
     surfaces = (await db.prepare(
       `SELECT DISTINCT surface FROM sentence_word ORDER BY RANDOM() LIMIT 150`
     ).all<{ surface: string }>()).results.map(r => r.surface)
   }
 
-  return { kana, senses, glosses, words, glossed, surfaces }
+  return { kana, senses, glosses, words, glossed, readings, surfaces }
 }
 
 const api = new Hono<Env>()

@@ -95,6 +95,10 @@ La lecture de chaque mot vient du **corpus, par vote majoritaire**, et non des m
 de priorite de JMdict : 人 se lit ひと 3 068 fois contre じん 17, ce qu'aucun classement
 generique ne dit.
 
+**Prononciation** — chaque lecture affichee est doublee de sa transcription en romaji.
+Les lectures on s'ecrivent en katakana par convention, ce qui ne sert a rien tant qu'on
+ne les lit pas couramment. Le kana reste au premier plan, la transcription en dessous.
+
 **Le moteur** — planification par FSRS (`ts-fsrs`), avec l'intervalle de chaque note
 affiche avant de choisir. Plafond de 20 nouvelles cartes par jour, revisions et
 nouveautes melangees. Chaque reponse est journalisee dans `review_log` : c'est cette

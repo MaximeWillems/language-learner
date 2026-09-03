@@ -23,6 +23,8 @@ export interface QueueCard {
   blank: number
   /** Sens du mot masque, revele avec la reponse. */
   blankGloss: string
+  /** Lecture du mot masque, en kana. */
+  blankReading: string
   lapses: number
 }
 

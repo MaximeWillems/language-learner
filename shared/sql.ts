@@ -121,7 +121,7 @@ export const WORD_GLOSSES = `
 
 /** Les mots d'une phrase, avec leur sens, pour eclairer le mot masque. */
 export const SENTENCE_WORDS = `
-  SELECT sw.sentence_id, sw.pos, sw.surface, w.gloss
+  SELECT sw.sentence_id, sw.pos, sw.surface, w.gloss, w.reading
     FROM sentence_word sw
     JOIN word w ON w.id = sw.word_id
    WHERE sw.sentence_id IN (:ids)

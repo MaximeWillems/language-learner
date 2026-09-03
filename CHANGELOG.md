@@ -4,6 +4,22 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.12.0 — 2 septembre 2026
+
+- **La prononciation est affichee.** Les lectures on s'ecrivent en katakana par
+  convention, ce qui ne dit rien a qui ne les lit pas encore couramment : サン ne se
+  prononce pas tout seul. Chaque lecture est desormais doublee de sa transcription en
+  romaji — sur les kanji (on et kun), sur les mots, sur les kana, et sur le mot masque
+  d'un texte a trous.
+- Le kana reste au premier plan et la transcription en dessous, plus petite et plus
+  discrete : elle depanne sans devenir la chose qu'on lit.
+- Le point d'okurigana et le tiret de prefixe sont conserves dans la transcription
+  (`おこな.う` donne `okona.u`) : ils disent ou le kanji s'arrete.
+- Aucune migration : les lectures etaient deja en base, il ne manquait que l'affichage.
+  Cette version ne consomme rien du quota d'ecriture.
+- 73 tests, dont un aller-retour qui verifie que transcrire puis relire redonne le
+  meme kana.
+
 ## 0.11.1 — 2 septembre 2026
 
 - **Les phrases etaient trop dures.** Le classement bornait le niveau scolaire des kanji

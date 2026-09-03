@@ -811,3 +811,41 @@ button:focus-visible { outline: 2px solid var(--ai); outline-offset: 2px; }
 @media (min-width: 900px) {
   .word { font-size: 4.4rem; }
 }
+
+/* ---------- prononciation ---------- */
+
+.readings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  align-items: center;
+}
+.readings .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--s1) var(--s3);
+}
+.readings .tagline {
+  font-family: var(--f-mono);
+  font-size: .66rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* la lecture reste au premier plan, la transcription ne fait que depanner */
+.say { display: inline-flex; flex-direction: column; align-items: center; gap: 0; }
+.say b { font-weight: 500; font-size: 1.2rem; color: var(--ink-soft); line-height: 1.25; }
+.say .rom { font-family: var(--f-mono); font-size: .7rem; font-style: normal; color: var(--muted); }
+
+.rom { font-family: var(--f-mono); font-style: normal; color: var(--muted); }
+
+.gap-word { display: inline-flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; justify-content: center; }
+.gap-word .rom { font-size: .78rem; }
+
+@media (min-width: 900px) {
+  .say b { font-size: 1.35rem; }
+  .say .rom { font-size: .76rem; }
+}

@@ -49,3 +49,31 @@ test('le marqueur de prefixe ne se prononce pas', () => {
   assert.equal(matchesAnyReading('bi', ['ニチ', 'ひ', '-び']), true)
   assert.equal(matchesAnyReading('', ['ニチ']), false)
 })
+
+test('une lecture en kana se transcrit en romaji', async () => {
+  const { romajiOf } = await import('../.test-build/shared/normalize.js')
+  // les lectures on s'ecrivent en katakana : サン ne se prononce pas tout seul
+  assert.equal(romajiOf('サン'), 'san')
+  assert.equal(romajiOf('セン'), 'sen')
+  assert.equal(romajiOf('やま'), 'yama')
+  assert.equal(romajiOf('ジツ'), 'jitsu')
+  assert.equal(romajiOf('がくせい'), 'gakusei')
+  assert.equal(romajiOf('ちょっと'), 'chotto')
+  assert.equal(romajiOf(''), '')
+})
+
+test('la transcription garde ce qui porte du sens', async () => {
+  const { romajiOf } = await import('../.test-build/shared/normalize.js')
+  // le point marque ou le kanji s'arrete, le tiret marque un prefixe ou un suffixe
+  assert.equal(romajiOf('おこな.う'), 'okona.u')
+  assert.equal(romajiOf('い.く'), 'i.ku')
+  assert.equal(romajiOf('-び'), '-bi')
+})
+
+test('transcrire puis relire redonne le meme kana', async () => {
+  const { romajiOf, matchesAnyReading } = await import('../.test-build/shared/normalize.js')
+  for (const kana of ['サン', 'やま', 'ニチ', 'がくせい', 'きょう', 'りゅう', 'ちょっと']) {
+    assert.equal(matchesAnyReading(romajiOf(kana), [kana]), true,
+      `${kana} -> ${romajiOf(kana)} ne revient pas sur ses pieds`)
+  }
+})
