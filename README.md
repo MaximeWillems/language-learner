@@ -244,6 +244,12 @@ Les requetes vivent dans `shared/sql.ts` et l'ordonnancement dans `shared/queue.
 importes a la fois par le Worker et par les tests. **Une requete recopiee dans un test
 finit toujours par diverger de celle qui tourne en production** ; ici c'est la meme.
 
+`test/d1.mjs` est un adaptateur D1 minimal au-dessus de SQLite : les tests appellent les
+**vraies routes** du Worker, pas seulement ses requetes. Verifier les requetes une a une
+laissait passer tout ce qui se joue entre elles — assemblage des cartes, viviers de
+leurres, construction des filtres. C'est exactement par la qu'une erreur 500 sur toutes
+les revisions est arrivee en production.
+
 Ce qui est couvert en priorite, ce sont les pannes deja vecues — chacune a son test de
 non-regression :
 
@@ -254,6 +260,7 @@ non-regression :
 | cout d'une selection | 12 000 lignes ecrites d'avance, qui ont fait toucher le plafond D1 |
 | cartes d'un meme element | le texte a trous devoilait la traduction demandee juste apres |
 | entrainement libre | une reponse hors echeance ne doit jamais deplacer une revision |
+| seance filtree | un filtre non qualifie rendait `script` ambigu : 500 sur toute revision |
 
 ## Le budget d'ecriture D1
 

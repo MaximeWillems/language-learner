@@ -261,19 +261,36 @@ api.post('/deck', async c => {
   return c.json(await counts(c.env.DB, u))
 })
 
-// Filtre commun a la file de revision et a l'entrainement : on ne melange pas
-// caracteres et phrases dans une meme seance sauf demande explicite.
+/**
+ * Filtre commun a la file de revision et a l'entrainement : on ne melange pas les
+ * familles de contenu dans une meme seance sauf demande explicite.
+ *
+ * Deux formes, parce que les deux tables visees n'ont pas la meme structure :
+ *   - `card_item` porte `script`, `grp` et `kind` sans ambiguite ;
+ *   - `content` est joint a `deck_selection`, qui porte les memes noms de colonnes.
+ *     Sans le prefixe `ct.`, SQLite refuse la requete — « ambiguous column name ».
+ *
+ * La forme prefixee ignore `kind` : les cartes n'existent pas encore a ce stade.
+ */
 function selection(q: (k: string) => string | undefined) {
   const csv = (v: string | undefined) => (v ? v.split(',').filter(Boolean) : [])
   const scripts = csv(q('scripts'))
   const groups = csv(q('groups'))
   const kinds = csv(q('kinds'))
-  const clauses: string[] = []
-  const args: unknown[] = []
-  if (scripts.length) { clauses.push(`script IN (${ph(scripts.length)})`); args.push(...scripts) }
-  if (groups.length) { clauses.push(`grp IN (${ph(groups.length)})`); args.push(...groups) }
-  if (kinds.length) { clauses.push(`kind IN (${ph(kinds.length)})`); args.push(...kinds) }
-  return { sql: clauses.length ? ' AND ' + clauses.join(' AND ') : '', args }
+
+  const build = (alias: string) => {
+    const col = (c: string) => (alias ? `${alias}.${c}` : c)
+    const clauses: string[] = []
+    const args: unknown[] = []
+    if (scripts.length) { clauses.push(`${col('script')} IN (${ph(scripts.length)})`); args.push(...scripts) }
+    if (groups.length) { clauses.push(`${col('grp')} IN (${ph(groups.length)})`); args.push(...groups) }
+    if (!alias && kinds.length) { clauses.push(`kind IN (${ph(kinds.length)})`); args.push(...kinds) }
+    return { sql: clauses.length ? ' AND ' + clauses.join(' AND ') : '', args }
+  }
+
+  const card = build('')
+  const content = build('ct')
+  return { sql: card.sql, args: card.args, contentSql: content.sql, contentArgs: content.args }
 }
 
 api.get('/queue', async c => {
@@ -288,7 +305,7 @@ api.get('/queue', async c => {
   ).bind(u, LANG, ...f.args, now.toISOString(), limit).all<Row>()
 
   const room = Math.min(ct.newLeftToday, Math.max(0, limit - reviews.results.length))
-  if (room > 0) await materialize(c.env.DB, u, Math.ceil(room / 2), f.sql.replace(/script/g, 'ct.script'), f.args)
+  if (room > 0) await materialize(c.env.DB, u, Math.ceil(room / 2), f.contentSql, f.contentArgs)
 
   const fresh = room > 0
     ? (await c.env.DB.prepare(

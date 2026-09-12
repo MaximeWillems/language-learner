@@ -4,6 +4,24 @@ La version affichee en bas de l'application correspond a celle qui tourne sur le
 serveur. Si ton onglet est reste ouvert pendant un deploiement, un bandeau te propose
 de recharger.
 
+## 0.12.1 — 12 septembre 2026
+
+- **Correction : toute revision normale renvoyait une erreur 500.** Le filtre par
+  famille etait qualifie par un remplacement de chaine dont la regex contenait des
+  caracteres de controle invisibles, introduits par une correction automatisee. Elle ne
+  correspondait a rien, le filtre arrivait non qualifie, et SQLite refusait la requete :
+  `content` et `deck_selection` portent tous deux une colonne `script`. Seule la file
+  sans filtre passait — et l'ecran d'accueil en envoie toujours un.
+- Le filtre n'est plus bricole a coups de remplacement de chaine : il est **construit
+  pour la table visee**, avec ou sans prefixe. Cela corrige au passage un second defaut
+  latent, un filtre par groupe rendant `grp` ambigu de la meme facon.
+- **Les tests appellent desormais les vraies routes.** Un adaptateur D1 en memoire
+  (`test/d1.mjs`) fait tourner le Worker au-dessus de SQLite. Jusqu'ici la suite
+  verifiait les requetes prises une a une, jamais ce qui se passe entre elles — c'est
+  precisement par la que ce bug est passe.
+- 84 tests. Le defaut a ete reintroduit pour verifier qu'ils le rattrapent : cinq
+  echouent avec, aucun sans.
+
 ## 0.12.0 — 2 septembre 2026
 
 - **La prononciation est affichee.** Les lectures on s'ecrivent en katakana par

@@ -12,7 +12,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply kotoba --remote",
     "db:seed": "node scripts/seed-kana.mjs",
     "typecheck": "tsc --noEmit",
-    "pretest": "tsc shared/normalize.ts shared/queue.ts shared/sql.ts api/srs.ts --outDir .test-build --module esnext --target es2022 --moduleResolution bundler --skipLibCheck",
+    "pretest": "tsc shared/normalize.ts shared/queue.ts shared/sql.ts shared/types.ts api/srs.ts api/index.ts --outDir .test-build --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --types @cloudflare/workers-types && node scripts/fix-esm.mjs",
     "test": "node --test test/",
     "budget": "node scripts/write-budget.mjs",
     "check": "npm run typecheck && npm run test && npm run budget"
